@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Public_Sans, JetBrains_Mono } from 'next/font/goog
 import AuthProvider from '@/components/AuthProvider';
 import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar';
 import InstallPrompt from '@/components/InstallPrompt';
+import MeetupInbox from '@/components/MeetupInbox';
 
 const display = Bricolage_Grotesque({
   subsets: ['latin'],
@@ -41,6 +42,7 @@ export default function RootLayout({ children }) {
       <body>
         <AuthProvider>
           {children}
+          <MeetupInbox />
           <ServiceWorkerRegistrar />
           <InstallPrompt />
         </AuthProvider>

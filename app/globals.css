@@ -145,6 +145,71 @@ a {
   }
 }
 
+/* Meetup map pins (Leaflet divIcons live outside CSS modules). */
+.person-pin {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  color: #fff;
+  font: 700 13px/26px var(--font-body), system-ui, sans-serif;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(30, 42, 36, 0.4);
+}
+
+.person-pin-me {
+  animation: me-pulse 2s ease-out infinite;
+}
+
+@keyframes me-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(47, 111, 94, 0.55), 0 2px 6px rgba(30, 42, 36, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 0 16px rgba(47, 111, 94, 0), 0 2px 6px rgba(30, 42, 36, 0.4);
+  }
+}
+
+.midpoint-pin {
+  width: 16px;
+  height: 16px;
+  background: var(--marker);
+  transform: rotate(45deg);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(197, 17, 98, 0.5);
+}
+
+.dest-pin,
+.proposal-pin {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #1E2A24;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(30, 42, 36, 0.45);
+}
+
+.proposal-pin {
+  background: #fff;
+  border: 3px dashed #1E2A24;
+}
+
+.drop-pin {
+  width: 18px;
+  height: 18px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #C0913C;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(30, 42, 36, 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .person-pin-me {
+    animation: none;
+  }
+}
+
 .leaflet-popup-content-wrapper {
   background: var(--panel);
   color: var(--ink);

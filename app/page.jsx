@@ -64,6 +64,13 @@ function PanelContent({
       {!hasSearch && (
         <>
           <p className={styles.empty}>Two locations in. One fair meeting point out.</p>
+          <a href="/friends" className={styles.friendsLink}>
+            <span>
+              <strong>Meet a friend live</strong>
+              Send a request, agree on a place, and track each other there.
+            </span>
+            <span aria-hidden="true">→</span>
+          </a>
           <ExplorePrompt onPickCategories={setCats} />
         </>
       )}

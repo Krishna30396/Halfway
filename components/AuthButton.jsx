@@ -36,6 +36,7 @@ export default function AuthButton() {
       {menuOpen && (
         <div className={styles.menu}>
           <div className={styles.menuEmail}>{user.email}</div>
+          <a href="/friends" className={styles.menuItem}>Friends & meetups</a>
           <a href="/auth/saved" className={styles.menuItem}>Saved searches</a>
           <button type="button" className={styles.menuItem} onClick={() => { signOut(); setMenuOpen(false); }}>
             Sign out

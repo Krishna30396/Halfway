@@ -90,6 +90,37 @@
   color: var(--error);
 }
 
+.friendsLink {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  min-height: 44px;
+  border: 1px solid var(--ink);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.friendsLink > span:first-child {
+  flex: 1;
+  color: var(--muted);
+}
+
+.friendsLink strong {
+  display: block;
+  font-size: 14.5px;
+  color: var(--ink);
+}
+
+.friendsLink:hover {
+  background: var(--paper);
+}
+
 /* ---- Hub ---- */
 .hubName {
   font-size: 22px;

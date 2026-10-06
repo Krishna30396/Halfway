@@ -4,6 +4,7 @@ import AuthProvider from '@/components/AuthProvider';
 import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar';
 import InstallPrompt from '@/components/InstallPrompt';
 import MeetupInbox from '@/components/MeetupInbox';
+import FriendsWidget from '@/components/FriendsWidget';
 
 const display = Bricolage_Grotesque({
   subsets: ['latin'],
@@ -43,6 +44,7 @@ export default function RootLayout({ children }) {
         <AuthProvider>
           {children}
           <MeetupInbox />
+          <FriendsWidget />
           <ServiceWorkerRegistrar />
           <InstallPrompt />
         </AuthProvider>

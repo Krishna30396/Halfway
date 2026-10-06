@@ -1,14 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/components/AuthProvider';
 import NotificationToggle from '@/components/NotificationToggle';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getSupabase } from '@/lib/supabase';
-import { notify } from '@/lib/notify';
-import { fetchProfiles, displayName, initialOf, USERNAME_RE } from '@/lib/social';
+import { useFriends } from '@/lib/useFriends';
+import { displayName, initialOf, USERNAME_RE } from '@/lib/social';
 import s from '@/components/Social.module.css';
 
 const STATUS_LABEL = {
@@ -18,15 +17,10 @@ const STATUS_LABEL = {
 };
 
 export default function FriendsPage() {
-  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const supabase = getSupabase();
-
-  const [me, setMe] = useState(null);
-  const [friendships, setFriendships] = useState([]);
-  const [meetups, setMeetups] = useState([]);
-  const [people, setPeople] = useState({});
-  const [loaded, setLoaded] = useState(false);
+  const f = useFriends();
+  const { user, authLoading, loaded, me, meetups, people, incoming, outgoing, friends, otherOf, meetupWith } = f;
 
   const [editing, setEditing] = useState(false);
   const [unameDraft, setUnameDraft] = useState('');
@@ -36,39 +30,6 @@ export default function FriendsPage() {
   const [addName, setAddName] = useState('');
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(null);
-
-  const load = useCallback(async () => {
-    if (!supabase || !user) return;
-    const [{ data: prof }, { data: fr }, { data: mu }] = await Promise.all([
-      supabase.from('profiles').select('id, username, display_name').eq('id', user.id).maybeSingle(),
-      supabase.from('friendships').select('*').order('created_at', { ascending: false }),
-      supabase
-        .from('meetups')
-        .select('id, created_by, invitee, status, dest_name, updated_at')
-        .in('status', ['requested', 'planning', 'live'])
-        .order('updated_at', { ascending: false }),
-    ]);
-    const others = [
-      ...(fr || []).map((f) => (f.requester === user.id ? f.addressee : f.requester)),
-      ...(mu || []).map((m) => (m.created_by === user.id ? m.invitee : m.created_by)),
-    ];
-    setPeople(await fetchProfiles(others));
-    setMe(prof || { id: user.id });
-    setFriendships(fr || []);
-    setMeetups(mu || []);
-    setLoaded(true);
-  }, [supabase, user]);
-
-  useEffect(() => {
-    if (authLoading || !user || !supabase) return;
-    load();
-    const channel = supabase
-      .channel(`friends-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'meetups' }, load)
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [authLoading, user, supabase, load]);
 
   // Invite links look like /friends?add=username
   useEffect(() => {
@@ -123,11 +84,18 @@ export default function FriendsPage() {
     );
   }
 
-  const otherOf = (f) => (f.requester === user.id ? f.addressee : f.requester);
-  const incoming = friendships.filter((f) => f.status === 'pending' && f.addressee === user.id);
-  const outgoing = friendships.filter((f) => f.status === 'pending' && f.requester === user.id);
-  const friends = friendships.filter((f) => f.status === 'accepted');
-  const meetupWith = (id) => meetups.find((m) => m.created_by === id || m.invitee === id);
+  const act = (key, fn) => async () => {
+    setBusy(key);
+    setMsg(null);
+    try {
+      const text = await fn();
+      if (text) setMsg({ text });
+    } catch (err) {
+      setMsg({ err: true, text: err.message || 'Something went wrong.' });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const saveProfile = async (e) => {
     e.preventDefault();
@@ -153,7 +121,7 @@ export default function FriendsPage() {
       return;
     }
     setEditing(false);
-    load();
+    f.reload();
   };
 
   const startEdit = () => {
@@ -163,119 +131,30 @@ export default function FriendsPage() {
     setEditing(true);
   };
 
-  const shareInvite = async () => {
-    const url = `${window.location.origin}/friends?add=${me.username}`;
-    const text = `Add me on Halfway so we can meet up: ${url}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Halfway', text, url });
-        return;
-      } catch (err) {
-        if (err.name === 'AbortError') return;
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      setMsg({ text: 'Invite link copied — send it to your friend.' });
-    } catch {
-      window.prompt('Copy your invite link', url);
-    }
-  };
+  const shareInvite = act('share', f.shareInvite);
 
-  const addFriend = async (e) => {
+  const addFriend = (e) => {
     e.preventDefault();
-    const uname = addName.trim().replace(/^@/, '').toLowerCase();
-    setMsg(null);
-    if (!USERNAME_RE.test(uname)) {
-      setMsg({ err: true, text: 'Enter their exact username (letters, numbers, _).' });
-      return;
-    }
-    if (uname === me?.username) {
-      setMsg({ err: true, text: "That's your own username." });
-      return;
-    }
-    setBusy('add');
-    try {
-      const { data: found, error: findError } = await supabase.rpc('find_profile_by_username', { u: uname });
-      if (findError) throw findError;
-      const target = found?.[0];
-      if (!target) {
-        setMsg({ err: true, text: `No one is called @${uname} yet. Check the spelling.` });
-        return;
-      }
-      const existing = friendships.find((f) => otherOf(f) === target.id);
-      if (existing?.status === 'accepted') {
-        setMsg({ text: `You're already friends with ${displayName(target)}.` });
-        return;
-      }
-      if (existing && existing.requester === target.id) {
-        await accept(existing);
-        return;
-      }
-      if (existing) {
-        setMsg({ text: 'Request already sent — waiting for them to accept.' });
-        return;
-      }
-      const { data, error } = await supabase
-        .from('friendships')
-        .insert({ requester: user.id, addressee: target.id })
-        .select()
-        .single();
-      if (error) throw error;
-      notify('friend_request', data.id);
+    act('add', async () => {
+      const text = await f.sendRequest(addName);
       setAddName('');
-      setMsg({ text: `Friend request sent to ${displayName(target)}.` });
       window.history.replaceState(null, '', '/friends');
-      load();
-    } catch (err) {
-      setMsg({ err: true, text: err.code === '23505' ? 'You two are already connected.' : err.message });
-    } finally {
-      setBusy(null);
-    }
+      return text;
+    })();
   };
 
-  const accept = async (f) => {
-    setBusy(f.id);
-    const { error } = await supabase.from('friendships').update({ status: 'accepted' }).eq('id', f.id);
-    setBusy(null);
-    if (error) {
-      setMsg({ err: true, text: error.message });
-      return;
-    }
-    notify('friend_accepted', f.id);
-    setMsg({ text: `You and ${displayName(people[otherOf(f)])} are now friends.` });
-    load();
-  };
+  const accept = (fr) => act(fr.id, () => f.accept(fr))();
 
-  const remove = async (f, confirmText) => {
+  const remove = (fr, confirmText) => {
     if (confirmText && !window.confirm(confirmText)) return;
-    setBusy(f.id);
-    const { error } = await supabase.from('friendships').delete().eq('id', f.id);
-    setBusy(null);
-    if (error) setMsg({ err: true, text: error.message });
-    load();
+    act(fr.id, () => f.remove(fr))();
   };
 
-  const meetUp = async (friendId) => {
-    const open = meetupWith(friendId);
-    if (open) {
-      router.push(`/meet/${open.id}`);
-      return;
-    }
-    setBusy(friendId);
-    const { data, error } = await supabase
-      .from('meetups')
-      .insert({ created_by: user.id, invitee: friendId })
-      .select()
-      .single();
-    if (error) {
-      setBusy(null);
-      setMsg({ err: true, text: error.message });
-      return;
-    }
-    await notify('meet_request', data.id);
-    router.push(`/meet/${data.id}`);
-  };
+  const meetUp = (friendId) =>
+    act(friendId, async () => {
+      const id = await f.startMeetup(friendId);
+      router.push(`/meet/${id}`);
+    })();
 
   return (
     <Shell>

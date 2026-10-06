@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import { useAuthProviders } from '@/lib/useAuthProviders';
 import styles from '../auth.module.css';
 
 export default function SignupPage() {
+  const providers = useAuthProviders();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -122,6 +124,8 @@ export default function SignupPage() {
             {loading ? 'Creating account…' : 'Create account'}
           </button>
 
+          {providers.google && (
+          <>
           <div className={styles.divider}>or</div>
 
           <button type="button" className={styles.google} onClick={handleGoogle}>
@@ -133,6 +137,8 @@ export default function SignupPage() {
             </svg>
             Continue with Google
           </button>
+          </>
+          )}
         </form>
 
         <p className={styles.footer}>

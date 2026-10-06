@@ -39,7 +39,20 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+    <html
+      lang="en"
+      className={`${display.variable} ${body.variable} ${mono.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        {/* Apply the saved theme before first paint so there's no light/dark flash. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var m=localStorage.getItem('halfway-theme');if(m==='dark'||m==='light')document.documentElement.setAttribute('data-mode',m)}catch(e){}",
+          }}
+        />
+      </head>
       <body>
         <AuthProvider>
           {children}

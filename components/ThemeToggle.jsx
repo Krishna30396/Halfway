@@ -1,48 +1,49 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import styles from './ThemeToggle.module.css';
 
+const KEY = 'halfway-theme';
+
+function currentMode() {
+  const attr = document.documentElement.getAttribute('data-mode');
+  if (attr === 'dark' || attr === 'light') return attr;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+// Several toggles can be on screen at once (sidebar + mobile sheet), so the
+// <html> attribute is the single source of truth and every toggle watches it.
 export default function ThemeToggle() {
-  const [mode, setMode] = useState('system');
-  const [mounted, setMounted] = useState(false);
+  const [mode, setMode] = useState(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('halfway-theme');
-    if (saved === 'dark' || saved === 'light') {
-      document.documentElement.setAttribute('data-mode', saved);
-      setMode(saved);
-    }
-    setMounted(true);
+    setMode(currentMode());
+    const observer = new MutationObserver(() => setMode(currentMode()));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mode'] });
+    return () => observer.disconnect();
   }, []);
 
-  const cycle = useCallback(() => {
-    setMode((cur) => {
-      const next = cur === 'light' ? 'dark' : cur === 'dark' ? 'system' : 'light';
-      if (next === 'system') {
-        document.documentElement.removeAttribute('data-mode');
-        localStorage.removeItem('halfway-theme');
-      } else {
-        document.documentElement.setAttribute('data-mode', next);
-        localStorage.setItem('halfway-theme', next);
-      }
-      return next;
-    });
-  }, []);
+  const toggle = () => {
+    const next = currentMode() === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-mode', next);
+    try {
+      localStorage.setItem(KEY, next);
+    } catch {}
+  };
 
-  const label = mode === 'dark' ? '☽' : mode === 'light' ? '☀' : '◐';
-  const title = mode === 'dark' ? 'Dark mode' : mode === 'light' ? 'Light mode' : 'System theme';
+  const isDark = mode === 'dark';
+  const label = isDark ? 'Switch to light mode' : 'Switch to dark mode';
 
   return (
     <button
       type="button"
       className={styles.toggle}
-      onClick={cycle}
-      aria-label={title}
-      title={title}
+      onClick={toggle}
+      aria-label={label}
+      title={label}
       suppressHydrationWarning
     >
-      {mounted ? label : '◐'}
+      {mode ? (isDark ? '☀' : '☽') : '◐'}
     </button>
   );
 }

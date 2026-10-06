@@ -61,7 +61,7 @@ export default function NotificationToggle() {
           {state === 'unsupported'
             ? "This browser can't receive them. On iPhone, add Halfway to your Home Screen first."
             : state === 'denied'
-              ? 'Notifications are blocked. Allow them for this site in your browser settings.'
+              ? 'Notifications are blocked for this site. Tap the icon left of the address bar → Permissions → Notifications → Allow, then reload.'
               : 'Get alerted when a friend wants to meet, suggests a place, or arrives.'}
         </div>
         {state === 'off' && (

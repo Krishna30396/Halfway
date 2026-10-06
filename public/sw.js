@@ -1,4 +1,4 @@
-const CACHE_NAME = 'halfway-v2';
+const CACHE_NAME = 'halfway-v3';
 const SHELL_ASSETS = ['/manifest.json', '/favicon.svg', '/icons/icon-192.png'];
 
 self.addEventListener('install', (event) => {

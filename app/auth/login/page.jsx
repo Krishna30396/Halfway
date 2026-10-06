@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import { useAuthProviders } from '@/lib/useAuthProviders';
 import styles from '../auth.module.css';
 
 export default function LoginPage() {
+  const providers = useAuthProviders();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
@@ -82,6 +84,8 @@ export default function LoginPage() {
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
 
+          {providers.google && (
+          <>
           <div className={styles.divider}>or</div>
 
           <button type="button" className={styles.google} onClick={handleGoogle}>
@@ -93,6 +97,8 @@ export default function LoginPage() {
             </svg>
             Continue with Google
           </button>
+          </>
+          )}
         </form>
 
         <p className={styles.footer}>

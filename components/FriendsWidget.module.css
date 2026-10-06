@@ -353,12 +353,17 @@
 }
 
 @media (max-width: 768px) {
+  /* Float just above the collapsed bottom sheet (18dvh) so it never covers the inputs. */
+  .fab {
+    bottom: calc(18dvh + 14px);
+  }
+
   .panel {
     left: 8px;
     right: 8px;
     width: auto;
-    bottom: calc(max(20px, calc(env(safe-area-inset-bottom) + 12px)) + 68px);
-    max-height: calc(100dvh - 110px);
+    bottom: calc(18dvh + 82px);
+    max-height: calc(82dvh - 100px);
   }
 }
 

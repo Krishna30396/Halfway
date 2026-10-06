@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuthProviders } from '@/lib/useAuthProviders';
+import { hasPendingInvite } from '@/lib/social';
 import styles from '../auth.module.css';
 
 export default function LoginPage() {
@@ -27,7 +28,7 @@ export default function LoginPage() {
       setError(err.message);
       setLoading(false);
     } else {
-      window.location.href = '/';
+      window.location.href = hasPendingInvite() ? '/friends' : '/';
     }
   };
 

@@ -148,6 +148,9 @@ export default function FriendsWidget() {
                   </button>
                 </form>
 
+                {f.inviteResult && (
+                  <p className={f.inviteResult.err ? s.error : s.ok}>{f.inviteResult.text}</p>
+                )}
                 {msg && <p className={msg.err ? s.error : s.ok}>{msg.text}</p>}
 
                 {f.meetups.length > 0 && (

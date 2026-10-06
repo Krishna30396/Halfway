@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import NotificationToggle from '@/components/NotificationToggle';
 import CategoryChips from '@/components/CategoryChips';
+import LocationInput from '@/components/LocationInput';
 import { getSupabase } from '@/lib/supabase';
 import { notify } from '@/lib/notify';
 import { fetchProfiles, displayName, initialOf } from '@/lib/social';
@@ -337,7 +338,7 @@ export default function MeetPage() {
     if (error) throw error;
     if (!data) {
       await load();
-      throw new Error('Something changed on the other phone — this screen has been refreshed.');
+      throw new Error(`${friendName} changed something at the same moment — here's the latest. Try again.`);
     }
     setMeetup(data);
     return data;
@@ -353,6 +354,42 @@ export default function MeetPage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  useEffect(() => {
+    if (!actionError) return;
+    const t = setTimeout(() => setActionError(null), 6000);
+    return () => clearTimeout(t);
+  }, [actionError]);
+
+  // A user tap lets the browser show the location prompt again.
+  const retryLocation = () => {
+    setGeoError(null);
+    navigator.geolocation?.getCurrentPosition(
+      (pos) => {
+        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+        myPosRef.current = p;
+        setMyPos(p);
+        sendLocation(true);
+      },
+      (err) =>
+        setGeoError(
+          err.code === 1
+            ? 'Location is still blocked. Open your browser’s site settings for Halfway, allow Location, then tap Try again — or type where you are below.'
+            : 'Couldn’t get a GPS fix. Try again outdoors, or type where you are below.'
+        ),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  };
+
+  const setManualLocation = (place) => {
+    if (!place) return;
+    const p = { lat: place.lat, lng: place.lng, accuracy: null };
+    myPosRef.current = p;
+    setMyPos(p);
+    setGeoError(null);
+    lastSent.current = null;
+    sendLocation(true);
   };
 
   const CLEAR_PROPOSAL = { proposal_name: null, proposal_lat: null, proposal_lng: null, proposed_by: null };
@@ -391,7 +428,8 @@ export default function MeetPage() {
         dest_lng: meetup.proposal_lng,
         ...CLEAR_PROPOSAL,
       },
-      { status: 'planning', proposed_by: friendId, proposal_lat: meetup.proposal_lat, proposal_lng: meetup.proposal_lng }
+      // Compare by name, not coordinates: float equality through the API isn't reliable.
+      { status: 'planning', proposed_by: friendId, proposal_name: meetup.proposal_name }
     );
     notify('place_agreed', id);
   });
@@ -498,13 +536,28 @@ export default function MeetPage() {
           {status === 'live' ? `Meeting ${friendName}` : `Plan with ${friendName}`}
         </h1>
 
-        {geoError && <p className={s.banner}>{geoError}</p>}
+        {geoError && (
+          <section className={s.card}>
+            <p className={s.banner}>{geoError}</p>
+            <div className={s.actions}>
+              <button type="button" className={s.secondary} onClick={retryLocation}>
+                Try again
+              </button>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <LocationInput label="Or type where you are" marker="a" value={null} onSelect={setManualLocation} />
+            </div>
+          </section>
+        )}
         {actionError && <p className={s.error}>{actionError}</p>}
 
         {status === 'planning' && (
           <>
             {!friendLoc && (
-              <p className={s.muted}>Waiting for {friendName}&apos;s location…</p>
+              <p className={s.banner}>
+                Waiting for {friendName}&apos;s location. If it doesn&apos;t appear, ask them to open this
+                meetup and allow location access when their phone asks.
+              </p>
             )}
 
             {proposal && (

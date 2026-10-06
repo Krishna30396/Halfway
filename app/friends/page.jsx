@@ -7,7 +7,7 @@ import NotificationToggle from '@/components/NotificationToggle';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getSupabase } from '@/lib/supabase';
 import { useFriends } from '@/lib/useFriends';
-import { displayName, initialOf, USERNAME_RE } from '@/lib/social';
+import { displayName, initialOf, savePendingInvite, USERNAME_RE } from '@/lib/social';
 import s from '@/components/Social.module.css';
 
 const STATUS_LABEL = {
@@ -34,7 +34,10 @@ export default function FriendsPage() {
   // Invite links look like /friends?add=username
   useEffect(() => {
     const add = new URLSearchParams(window.location.search).get('add');
-    if (add) setAddName(add);
+    if (add && USERNAME_RE.test(add.toLowerCase())) {
+      savePendingInvite(add);
+      window.history.replaceState(null, '', '/friends');
+    }
   }, []);
 
   const needsUsername = loaded && !me?.username;
@@ -366,6 +369,11 @@ export default function FriendsPage() {
             {busy === 'add' ? '…' : 'Add'}
           </button>
         </form>
+        {f.inviteResult && (
+          <p className={f.inviteResult.err ? s.error : s.ok} style={{ marginTop: 10 }}>
+            {f.inviteResult.text}
+          </p>
+        )}
         {msg && <p className={msg.err ? s.error : s.ok} style={{ marginTop: 10 }}>{msg.text}</p>}
 
         {outgoing.length > 0 && (

@@ -28,14 +28,17 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
 
-    const { error: err } = await supabase.auth.signUp({
+    const { data, error: err } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/` },
+      options: { emailRedirectTo: `${window.location.origin}/friends` },
     });
     if (err) {
       setError(err.message);
       setLoading(false);
+    } else if (data.session) {
+      // Email confirmation is off: signed in already. Pick a username next.
+      window.location.href = '/friends';
     } else {
       setSuccess(true);
       setLoading(false);

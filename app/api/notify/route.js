@@ -100,8 +100,8 @@ let vapidReady = false;
 function getAdmin() {
   const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const priv = process.env.VAPID_PRIVATE_KEY;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const service = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
   if (!pub || !priv || !url || !service) return null;
   if (!vapidReady) {
     webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:hello@halfway.app', pub, priv);

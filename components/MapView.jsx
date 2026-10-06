@@ -12,6 +12,8 @@ import {
   useMap,
 } from 'react-leaflet';
 import { CATEGORIES, CATEGORY_COLORS } from '@/lib/categories';
+import { placeholderFor } from '@/lib/placeholders';
+import PlaceImage from './PlaceImage';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -150,7 +152,7 @@ export default function MapView({
     <MapContainer
       center={center}
       zoom={6}
-      style={{ width: '100%', height: '100%', background: '#E9ECE4' }}
+      style={{ width: '100%', height: '100%', background: 'var(--map-bg)' }}
       zoomControl={true}
       attributionControl={true}
     >
@@ -243,6 +245,11 @@ export default function MapView({
           eventHandlers={{ remove: () => onPopupClose?.() }}
         >
           <div className="place-popup">
+            <PlaceImage
+              place={openPlace}
+              size={180}
+              style={{ width: '100%', height: 120, borderRadius: '6px 6px 0 0', marginBottom: 8 }}
+            />
             <strong>{openPlace.name}</strong>
             <div className="place-popup-meta">
               <span

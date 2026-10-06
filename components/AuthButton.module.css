@@ -1,0 +1,74 @@
+.signIn {
+  padding: 8px 14px;
+  min-height: 36px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  border: 1px solid var(--contour);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.signIn:hover {
+  border-color: var(--ink);
+  background: var(--panel);
+}
+
+.wrap {
+  position: relative;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--route);
+  color: #fff;
+  border: none;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  background: var(--panel);
+  border: 1px solid var(--contour);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px var(--shadow);
+  min-width: 200px;
+  overflow: hidden;
+  z-index: 1500;
+}
+
+.menuEmail {
+  padding: 12px 14px 8px;
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--contour);
+}
+
+.menuItem {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--ink);
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.menuItem:hover {
+  background: var(--paper);
+}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Maskable: safe zone is inner 80% (409.6px centered), so keep content within -->
+  <rect width="512" height="512" fill="#1E2A24"/>
+  <g transform="translate(256,230)">
+    <line x1="-90" y1="0" x2="90" y2="0" stroke="#E9ECE4" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="-90" cy="0" r="14" fill="#E9ECE4" stroke="#1E2A24" stroke-width="4"/>
+    <circle cx="90" cy="0" r="14" fill="#E9ECE4" stroke="#1E2A24" stroke-width="4"/>
+    <rect x="-16" y="-16" width="32" height="32" rx="4" fill="#C51162" transform="rotate(45)" stroke="#fff" stroke-width="4"/>
+  </g>
+  <text x="256" y="340" text-anchor="middle" fill="#E9ECE4" font-family="system-ui,sans-serif" font-weight="700" font-size="44" letter-spacing="6">HALFWAY</text>
+</svg>

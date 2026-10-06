@@ -10,13 +10,15 @@
   align-items: center;
   gap: 7px;
   padding: 9px 14px;
-  min-height: 38px;
+  min-height: 44px;
   font-size: 13px;
   border-radius: 999px;
   border: 1px solid var(--contour);
   background: var(--panel);
   color: var(--ink);
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .dot {
@@ -30,4 +32,25 @@
   background: var(--ink);
   border-color: var(--ink);
   color: var(--paper);
+}
+
+@media (max-width: 768px) {
+  .row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+    gap: 8px;
+  }
+
+  .row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chip,
+  .chipOn {
+    padding: 10px 16px;
+    font-size: 13.5px;
+  }
 }

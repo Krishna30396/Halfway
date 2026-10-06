@@ -36,8 +36,8 @@
   right: 6px;
   top: 50%;
   transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 50%;
   background: none;
@@ -45,6 +45,9 @@
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .clear:hover {
@@ -54,12 +57,13 @@
 
 .input {
   width: 100%;
-  padding: 10px 34px 10px 12px;
-  font-size: 15px;
+  padding: 12px 44px 12px 12px;
+  min-height: 44px;
+  font-size: 16px;
   color: var(--ink);
   background: var(--panel);
   border: 1px solid var(--contour);
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .input::placeholder {
@@ -83,7 +87,7 @@
   list-style: none;
   background: var(--panel);
   border: 1px solid var(--contour);
-  border-radius: 6px;
+  border-radius: 8px;
   box-shadow: 0 6px 20px rgba(30, 42, 36, 0.12);
   max-height: 260px;
   overflow-y: auto;
@@ -91,11 +95,14 @@
 
 .item,
 .itemActive {
-  padding: 8px 10px;
-  border-radius: 4px;
+  padding: 12px 10px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
   line-height: 1.35;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
 }
 
 .itemActive {
@@ -112,11 +119,24 @@
 
 .hint,
 .error {
-  padding: 8px 10px;
+  padding: 12px 10px;
   font-size: 13px;
   color: var(--muted);
 }
 
 .error {
   color: var(--error);
+}
+
+@media (max-width: 768px) {
+  .input {
+    font-size: 16px;
+    padding: 14px 44px 14px 14px;
+    border-radius: 10px;
+  }
+
+  .dropdown {
+    max-height: 200px;
+    border-radius: 10px;
+  }
 }

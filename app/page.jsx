@@ -9,6 +9,12 @@ import Ribbon from '@/components/Ribbon';
 import RadiusControl from '@/components/RadiusControl';
 import CategoryChips from '@/components/CategoryChips';
 import ResultsList from '@/components/ResultsList';
+import BottomSheet from '@/components/BottomSheet';
+import ExplorePrompt from '@/components/ExplorePrompt';
+import AreaGuide from '@/components/AreaGuide';
+import ThemeToggle from '@/components/ThemeToggle';
+import AuthButton from '@/components/AuthButton';
+import SaveButton from '@/components/SaveButton';
 import styles from './page.module.css';
 
 const MapView = dynamic(() => import('@/components/MapView'), {
@@ -22,6 +28,142 @@ const shortName = (s) => (s || '').split(',')[0].trim();
 function parsePoint(s) {
   const [lat, lng] = (s || '').split(',').map(Number);
   return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+function PanelContent({
+  a, setA, b, setB, routes, routeIndex, setRouteIndex, routeLoading, routeError,
+  midpoint, hubs, hubId, setHubId, hubsLoading, hubsNote, hubsError, hub, split,
+  radius, setRadius, cats, toggleCat, setCats, searchCenter, placesData, placesLoading,
+  placesError, activePlaceId, setActivePlaceId, selectPlace, share, toast,
+}) {
+  const hasSearch = a && b;
+
+  return (
+    <>
+      <header className={styles.header}>
+        <h1 className={styles.logo}>HALFWAY</h1>
+        <div className={styles.headerActions}>
+          {hasSearch && routes && hub && (
+            <SaveButton a={a} b={b} hub={hub} />
+          )}
+          {hasSearch && routes && (
+            <button type="button" className={styles.share} onClick={share}>
+              Share
+            </button>
+          )}
+          <ThemeToggle />
+          <AuthButton />
+        </div>
+      </header>
+
+      <div className={styles.inputs}>
+        <LocationInput label="You" marker="a" value={a} onSelect={setA} bias={b} />
+        <LocationInput label="Them" marker="b" value={b} onSelect={setB} bias={a} />
+      </div>
+
+      {!hasSearch && (
+        <>
+          <p className={styles.empty}>Two locations in. One fair meeting point out.</p>
+          <ExplorePrompt onPickCategories={setCats} />
+        </>
+      )}
+
+      {routeLoading && <p className={styles.status}>Finding the route…</p>}
+      {routeError && <p className={styles.statusError}>{routeError}</p>}
+
+      {split && hub && a && b && (
+        <Ribbon
+          aName={shortName(a.name)}
+          bName={shortName(b.name)}
+          distA={split.distA}
+          distB={split.distB}
+          offRouteKm={split.offRouteKm || 0}
+        />
+      )}
+
+      {routes && routes.length > 1 && (
+        <div className={styles.altRow}>
+          <span className={styles.sectionLabel}>Route</span>
+          {routes.map((r, i) => (
+            <button
+              key={i}
+              type="button"
+              className={i === routeIndex ? styles.altChipOn : styles.altChip}
+              onClick={() => setRouteIndex(i)}
+            >
+              {Math.round(r.durationMin)}&thinsp;min
+            </button>
+          ))}
+        </div>
+      )}
+
+      {midpoint && (
+        <section className={styles.hubSection}>
+          <span className={styles.sectionLabel}>Meet in</span>
+          {hub && hubId && (
+            <h2 className={styles.hubName}>
+              {hub.id === 'raw' ? 'The exact midpoint' : hub.name}
+            </h2>
+          )}
+          {hubsLoading && <p className={styles.status}>Finding towns…</p>}
+          {hubs != null && (
+            <div className={styles.hubChips}>
+              {hubs.map((h) => (
+                <button
+                  key={h.id}
+                  type="button"
+                  className={h.id === hubId ? styles.hubChipOn : styles.hubChip}
+                  onClick={() => setHubId(h.id)}
+                >
+                  {h.name}
+                </button>
+              ))}
+              <button
+                type="button"
+                className={hubId === 'raw' ? styles.hubChipOn : styles.hubChip}
+                onClick={() => setHubId('raw')}
+              >
+                Exact midpoint
+              </button>
+            </div>
+          )}
+          {hubsNote && <p className={styles.note}>{hubsNote}</p>}
+          {hubsError && <p className={styles.statusError}>{hubsError}</p>}
+        </section>
+      )}
+
+      <div className={styles.controls}>
+        <RadiusControl value={radius} onChange={setRadius} />
+        <CategoryChips selected={cats} onToggle={toggleCat} />
+      </div>
+
+      {placesData?.length > 0 && (
+        <AreaGuide
+          places={placesData}
+          activeCats={cats}
+          onCategoryFilter={(id) => toggleCat(id)}
+        />
+      )}
+
+      <div className={styles.results}>
+        {!searchCenter && routes ? (
+          <div className={styles.status}>Finding the meeting point…</div>
+        ) : (
+          <ResultsList
+            places={placesData}
+            hub={searchCenter}
+            loading={placesLoading}
+            error={placesError}
+            activePlaceId={activePlaceId}
+            onHover={setActivePlaceId}
+            onSelect={selectPlace}
+            onWidenRadius={() => setRadius((r) => Math.min(r + 5, 25))}
+            canWiden={radius < 25}
+          />
+        )}
+      </div>
+    </>
+  );
 }
 
 export default function Home() {
@@ -52,12 +194,9 @@ export default function Home() {
   const [mapCenter, setMapCenter] = useState(null);
   const [toast, setToast] = useState(null);
 
-  // URL writing must not start until the read effect's state has COMMITTED —
-  // a ref flips too early (same commit) and clobbers a shared link's params.
   const [restored, setRestored] = useState(false);
-  const urlIntent = useRef({}); // r / hub read from a shared URL, honoured once
+  const urlIntent = useRef({});
 
-  // ---- Read URL state on mount (§9) ---------------------------------------
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const pa = parsePoint(p.get('a'));
@@ -78,8 +217,6 @@ export default function Home() {
 
     setRestored(true);
 
-    // No shared link and no saved search: centre the map near the user so
-    // browsing cafés works before any location is typed. Best-effort only.
     if (!pa && !pb && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) =>
@@ -94,11 +231,8 @@ export default function Home() {
     }
   }, []);
 
-  // ---- Route when both ends are set ---------------------------------------
   useEffect(() => {
     if (!a || !b) {
-      // A location was deleted: the route, hub and mute all reset — the map
-      // gets its colours back.
       setRoutes(null);
       setRouteError(null);
       setHubs(null);
@@ -138,7 +272,6 @@ export default function Home() {
     return () => controller.abort();
   }, [a, b]);
 
-  // ---- Midpoint: walk the drawn geometry, never average coordinates -------
   const selectedRoute = routes?.[routeIndex] || null;
   const midInfo = useMemo(
     () => (selectedRoute ? pointAtFraction(selectedRoute.coords, 0.5) : null),
@@ -146,7 +279,6 @@ export default function Home() {
   );
   const midpoint = midInfo?.point || null;
 
-  // ---- Hubs when the midpoint moves ---------------------------------------
   useEffect(() => {
     if (!midpoint) return;
     const controller = new AbortController();
@@ -177,7 +309,6 @@ export default function Home() {
       })
       .catch((err) => {
         if (err.name !== 'AbortError') {
-          // A failed lookup must not look like an empty one (§12).
           setHubs([]);
           setHubId('raw');
           setHubsError("Couldn't look up nearby towns. Meeting at the exact halfway point instead.");
@@ -197,13 +328,11 @@ export default function Home() {
     return { id: 'raw', name: 'Exact midpoint', lat: midpoint[0], lng: midpoint[1] };
   }, [hubId, hubs, midpoint]);
 
-  // ---- Ribbon distances: measured along the drawn geometry ----------------
   const split = useMemo(() => {
     if (!selectedRoute || !midInfo) return null;
     if (!hub || hub.id === 'raw') {
       return { distA: midInfo.walked, distB: midInfo.total - midInfo.walked };
     }
-    // Project the chosen hub onto the route: nearest vertex's cumulative distance.
     const coords = selectedRoute.coords;
     const { steps, total } = cumulative(coords);
     let best = 0;
@@ -215,14 +344,9 @@ export default function Home() {
         best = i;
       }
     }
-    // bestD is the hub's detour off the route itself — shown honestly too.
     return { distA: steps[best], distB: total - steps[best], offRouteKm: bestD };
   }, [selectedRoute, midInfo, hub]);
 
-  // ---- Where to search for places -----------------------------------------
-  // With a route: the snapped hub (once snapping settles — querying the raw
-  // midpoint first would double every Overpass search). Without a route:
-  // wherever the map is looking, so browsing cafés works with no locations set.
   const searchCenter = useMemo(() => {
     if (routes) {
       return hub && hubId && !hubsLoading ? { lat: hub.lat, lng: hub.lng, isHub: true } : null;
@@ -230,7 +354,6 @@ export default function Home() {
     return mapCenter ? { ...mapCenter, isHub: false } : null;
   }, [routes, hub, hubId, hubsLoading, mapCenter]);
 
-  // ---- Places when search centre / radius / categories change --------------
   useEffect(() => {
     if (!searchCenter) return;
     if (!cats.length) {
@@ -262,7 +385,6 @@ export default function Home() {
     return () => controller.abort();
   }, [searchCenter?.lat, searchCenter?.lng, radius, cats]);
 
-  // ---- Write URL on every change (§9) — replaceState, no history spam -----
   useEffect(() => {
     if (!restored) return;
     const p = new URLSearchParams();
@@ -274,8 +396,6 @@ export default function Home() {
       p.set('b', `${b.lat.toFixed(4)},${b.lng.toFixed(4)}`);
       p.set('bn', b.name);
     }
-    // While a shared link's r/hub are still pending (fetches in flight),
-    // keep writing the incoming values so the URL never loses them.
     if (routes && routeIndex > 0) p.set('r', String(routeIndex));
     else if (urlIntent.current.r) p.set('r', String(urlIntent.current.r));
     if (hubId) p.set('hub', hubId);
@@ -286,7 +406,6 @@ export default function Home() {
     window.history.replaceState(null, '', qs ? `/?${qs}` : '/');
   }, [restored, a, b, routes, routeIndex, hubId, radius, cats]);
 
-  // ---- Actions ------------------------------------------------------------
   const toggleCat = useCallback(
     (id) => setCats((cur) => (cur.includes(id) ? cur.filter((c) => c !== id) : [...cur, id])),
     []
@@ -294,14 +413,12 @@ export default function Home() {
 
   const share = useCallback(async () => {
     const url = window.location.href;
-    // On phones the native share sheet goes straight to the messaging app —
-    // that's the whole loop. Clipboard is the desktop path.
     if (navigator.share) {
       try {
         await navigator.share({ title: 'Halfway', url });
         return;
       } catch (err) {
-        if (err.name === 'AbortError') return; // user closed the sheet
+        if (err.name === 'AbortError') return;
       }
     }
     try {
@@ -326,114 +443,18 @@ export default function Home() {
 
   const openPlace = openPlaceId ? placesData?.find((x) => x.id === openPlaceId) || null : null;
 
-  const hasSearch = a && b;
+  const panelProps = {
+    a, setA, b, setB, routes, routeIndex, setRouteIndex, routeLoading, routeError,
+    midpoint, hubs, hubId, setHubId, hubsLoading, hubsNote, hubsError, hub, split,
+    radius, setRadius, cats, toggleCat, setCats, searchCenter, placesData, placesLoading,
+    placesError, activePlaceId, setActivePlaceId, selectPlace, share, toast,
+  };
 
   return (
     <div className={styles.app}>
+      {/* Desktop: sidebar */}
       <aside className={styles.panel}>
-        <header className={styles.header}>
-          <h1 className={styles.logo}>HALFWAY</h1>
-          {hasSearch && routes && (
-            <button type="button" className={styles.share} onClick={share}>
-              Share
-            </button>
-          )}
-        </header>
-
-        <div className={styles.inputs}>
-          <LocationInput label="You" marker="a" value={a} onSelect={setA} bias={b} />
-          <LocationInput label="Them" marker="b" value={b} onSelect={setB} bias={a} />
-        </div>
-
-        {!hasSearch && (
-          <p className={styles.empty}>Two locations in. One fair meeting point out.</p>
-        )}
-
-        {routeLoading && <p className={styles.status}>Finding the route…</p>}
-        {routeError && <p className={styles.statusError}>{routeError}</p>}
-
-        {split && hub && a && b && (
-          <Ribbon
-            aName={shortName(a.name)}
-            bName={shortName(b.name)}
-            distA={split.distA}
-            distB={split.distB}
-            offRouteKm={split.offRouteKm || 0}
-          />
-        )}
-
-        {routes && routes.length > 1 && (
-          <div className={styles.altRow}>
-            <span className={styles.sectionLabel}>Route</span>
-            {routes.map((r, i) => (
-              <button
-                key={i}
-                type="button"
-                className={i === routeIndex ? styles.altChipOn : styles.altChip}
-                onClick={() => setRouteIndex(i)}
-              >
-                {Math.round(r.durationMin)}&thinsp;min
-              </button>
-            ))}
-          </div>
-        )}
-
-        {midpoint && (
-          <section className={styles.hubSection}>
-            <span className={styles.sectionLabel}>Meet in</span>
-            {hub && hubId && (
-              <h2 className={styles.hubName}>
-                {hub.id === 'raw' ? 'The exact midpoint' : hub.name}
-              </h2>
-            )}
-            {hubsLoading && <p className={styles.status}>Finding towns…</p>}
-            {hubs != null && (
-              <div className={styles.hubChips}>
-                {hubs.map((h) => (
-                  <button
-                    key={h.id}
-                    type="button"
-                    className={h.id === hubId ? styles.hubChipOn : styles.hubChip}
-                    onClick={() => setHubId(h.id)}
-                  >
-                    {h.name}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className={hubId === 'raw' ? styles.hubChipOn : styles.hubChip}
-                  onClick={() => setHubId('raw')}
-                >
-                  Exact midpoint
-                </button>
-              </div>
-            )}
-            {hubsNote && <p className={styles.note}>{hubsNote}</p>}
-            {hubsError && <p className={styles.statusError}>{hubsError}</p>}
-          </section>
-        )}
-
-        <div className={styles.controls}>
-          <RadiusControl value={radius} onChange={setRadius} />
-          <CategoryChips selected={cats} onToggle={toggleCat} />
-        </div>
-        <div className={styles.results}>
-          {!searchCenter && routes ? (
-            <div className={styles.status}>Finding the meeting point…</div>
-          ) : (
-            <ResultsList
-              places={placesData}
-              hub={searchCenter}
-              loading={placesLoading}
-              error={placesError}
-              activePlaceId={activePlaceId}
-              onHover={setActivePlaceId}
-              onSelect={selectPlace}
-              onWidenRadius={() => setRadius((r) => Math.min(r + 5, 25))}
-              canWiden={radius < 25}
-            />
-          )}
-        </div>
+        <PanelContent {...panelProps} />
       </aside>
 
       <div className={styles.map}>
@@ -459,6 +480,11 @@ export default function Home() {
           distanceNote={searchCenter?.isHub ? 'from the meeting point' : 'from the map centre'}
         />
       </div>
+
+      {/* Mobile: bottom sheet over the full-screen map */}
+      <BottomSheet hasResults={!!placesData?.length}>
+        <PanelContent {...panelProps} />
+      </BottomSheet>
 
       {toast && (
         <div className={styles.toast} role="status">

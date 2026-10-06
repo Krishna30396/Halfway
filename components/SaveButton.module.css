@@ -1,0 +1,29 @@
+.saveBtn,
+.savedBtn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--contour);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--ink);
+  flex-shrink: 0;
+}
+
+.saveBtn:hover {
+  border-color: var(--ink);
+  background: var(--panel);
+}
+
+.savedBtn {
+  border-color: var(--route);
+  color: var(--route);
+  font-size: 11px;
+  font-weight: 600;
+  width: auto;
+  padding: 0 10px;
+}

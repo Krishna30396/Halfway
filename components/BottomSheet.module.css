@@ -1,0 +1,62 @@
+.sheet {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sheet {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--paper);
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    box-shadow: 0 -4px 24px var(--shadow);
+    transition: height 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: height;
+    overflow: hidden;
+  }
+
+  .sheetPeek {
+    height: 18dvh;
+  }
+
+  .sheetHalf {
+    height: 52dvh;
+  }
+
+  .sheetFull {
+    height: 92dvh;
+  }
+
+  .handle {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 6px;
+    flex-shrink: 0;
+    cursor: grab;
+  }
+
+  .handle:active {
+    cursor: grabbing;
+  }
+
+  .handleBar {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--contour);
+  }
+
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0 16px 32px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}

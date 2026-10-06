@@ -1,0 +1,28 @@
+{
+  "packageId": "com.halfway.app",
+  "host": "halfway.app",
+  "name": "Halfway",
+  "launcherName": "Halfway",
+  "display": "standalone",
+  "themeColor": "#1E2A24",
+  "navigationColor": "#E9ECE4",
+  "navigationColorDark": "#121a16",
+  "navigationDividerColor": "#C6D0C1",
+  "navigationDividerColorDark": "#2a3a30",
+  "backgroundColor": "#E9ECE4",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://halfway.app/icons/icon-512.png",
+  "maskableIconUrl": "https://halfway.app/icons/icon-maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "__REPLACE__/halfway-keystore.jks",
+    "alias": "halfway"
+  },
+  "appVersionCode": 1,
+  "appVersionName": "1.0.0",
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://halfway.app/manifest.json",
+  "_comment": "Replace 'halfway.app' with your actual domain. Generate signing key with: keytool -genkeypair -alias halfway -keyalg RSA -keysize 2048 -validity 10000 -keystore halfway-keystore.jks"
+}

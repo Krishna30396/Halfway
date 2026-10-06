@@ -1,0 +1,68 @@
+.wrap {
+  margin-top: 20px;
+}
+
+.headline {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+
+.picks {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 8px;
+  min-height: 44px;
+  background: var(--panel);
+  border: 1px solid var(--contour);
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--ink);
+  transition: border-color 0.15s;
+}
+
+.pick:hover {
+  border-color: var(--ink);
+}
+
+.pickEmoji {
+  font-size: 24px;
+}
+
+.pickLabel {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+@media (max-width: 768px) {
+  .picks {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .pick {
+    flex-direction: row;
+    padding: 14px 16px;
+    gap: 10px;
+  }
+
+  .pickEmoji {
+    font-size: 22px;
+  }
+
+  .pickLabel {
+    font-size: 13px;
+  }
+}

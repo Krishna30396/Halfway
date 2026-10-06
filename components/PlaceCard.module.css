@@ -8,14 +8,42 @@
 }
 
 .button {
-  display: block;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   width: 100%;
   text-align: left;
-  padding: 10px 12px;
+  padding: 12px;
+  min-height: 44px;
   background: none;
   border: none;
   cursor: pointer;
   color: var(--ink);
+}
+
+.thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  object-fit: cover;
+  background: var(--contour);
+}
+
+.thumbPlaceholder {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
 }
 
 .top {
@@ -66,4 +94,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .button {
+    padding: 14px 12px;
+  }
+
+  .name {
+    font-size: 15px;
+  }
+
+  .meta {
+    font-size: 13px;
+  }
 }

@@ -369,8 +369,11 @@ export async function POST(request) {
     } catch (err) {
       console.error('Email send failed:', err.message);
       // Enough to spot a typo or a mis-paste without revealing either value.
-      const user = process.env.SMTP_USER || '';
-      const shown = user.replace(/^(.{2}).*(.{2}@.*)$/, '$1•••$2');
+      const user = (process.env.SMTP_USER || '').trim();
+      // Never echo SMTP_USER unless it really is an address (it once held a password).
+      const shown = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(user)
+        ? user.replace(/^(.{2}).*(@.*)$/, '$1•••$2')
+        : 'SMTP_USER, which is not an email address';
       const passLen = (process.env.SMTP_PASS || '').replace(/\s+/g, '').length;
       report.email = /535|Username and Password not accepted|BadCredentials/i.test(err.message)
         ? `Gmail rejected the login for ${shown} (password is ${passLen} characters; an app password is 16)`

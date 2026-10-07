@@ -3,7 +3,6 @@
 import { useEffect } from 'react';
 import {
   MapContainer,
-  TileLayer,
   Marker,
   Polyline,
   Circle,
@@ -13,7 +12,7 @@ import {
 } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { TILE_URL, TILE_ATTRIBUTION } from '@/lib/tiles';
+import VectorBaseLayer from './VectorBaseLayer';
 import { CATEGORY_COLORS } from '@/lib/categories';
 
 const esc = (t) =>
@@ -130,7 +129,7 @@ export default function MeetMap({
       zoom={me || friend ? 14 : 2}
       style={{ width: '100%', height: '100%', background: 'var(--map-bg)' }}
     >
-      <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+      <VectorBaseLayer />
       {follow ? <Follow target={follow} /> : <Fit points={points} fitKey={fitKey} />}
       <PanTo target={panTarget} />
       {onMapClick && <Clicks onClick={onMapClick} />}

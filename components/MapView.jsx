@@ -3,7 +3,6 @@
 import { useEffect, useMemo } from 'react';
 import {
   MapContainer,
-  TileLayer,
   Polyline,
   Marker,
   Circle,
@@ -16,7 +15,7 @@ import { placeholderFor } from '@/lib/placeholders';
 import PlaceImage from './PlaceImage';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { TILE_URL, TILE_ATTRIBUTION } from '@/lib/tiles';
+import VectorBaseLayer from './VectorBaseLayer';
 
 const endIcon = (label) =>
   L.divIcon({
@@ -62,16 +61,6 @@ const pulseIcon = L.divIcon({
   iconSize: [12, 12],
   iconAnchor: [6, 6],
 });
-
-// MapContainer's className is fixed at mount, so the mute toggle has to be
-// applied to the live container element.
-function TileMuter({ muted }) {
-  const map = useMap();
-  useEffect(() => {
-    map.getContainer().classList.toggle('tiles-muted', !!muted);
-  }, [map, muted]);
-  return null;
-}
 
 function FitBounds({ a, b, hub }) {
   const map = useMap();
@@ -147,8 +136,7 @@ export default function MapView({
       zoomControl={true}
       attributionControl={true}
     >
-      <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
-      <TileMuter muted={!!routes?.length} />
+      <VectorBaseLayer />
       <FitBounds a={a} b={b} hub={hub} />
       <PanTo target={panTarget} />
       <CenterTracker onChange={onCenterChange} />

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import NotificationToggle from '@/components/NotificationToggle';
+import ThemeToggle from '@/components/ThemeToggle';
 import CategoryChips from '@/components/CategoryChips';
 import LocationInput from '@/components/LocationInput';
 import { getSupabase } from '@/lib/supabase';
@@ -611,6 +612,7 @@ export default function MeetPage() {
           <span className={`${s.pill} ${status === 'live' ? s.pillLive : ''}`}>
             {status === 'live' ? 'Live' : 'Picking a place'}
           </span>
+          <ThemeToggle />
         </div>
 
         <h1 className={s.meetTitle}>
@@ -943,6 +945,10 @@ export default function MeetPage() {
 function Centered({ title, text, avatar, pulse, children }) {
   return (
     <div className={s.page}>
+      <div className={s.topBar} style={{ maxWidth: 440, margin: '0 auto' }}>
+        <Link href="/friends" className={s.back}>← Friends</Link>
+        <ThemeToggle />
+      </div>
       <div className={`${s.card} ${s.centerCard}`}>
         {avatar && (
           <div className={`${s.avatar} ${s.avatarAlt} ${s.bigAvatar} ${pulse ? s.pulseRing : ''}`}>{avatar}</div>

@@ -6,6 +6,7 @@ import { pointAtFraction } from '@/lib/geo';
 import { useLiveRoute, fmtKm, fmtMin } from '@/lib/navigation';
 import NavBanner from '@/components/NavBanner';
 import FriendSpot from '@/components/FriendSpot';
+import ThemeToggle from '@/components/ThemeToggle';
 import s from '@/components/Social.module.css';
 
 const NavigationMap = dynamic(() => import('@/components/NavigationMap'), { ssr: false });
@@ -67,6 +68,7 @@ export default function NavSim() {
         <div className={s.topBar}>
           <span className={s.back}>← Friends</span>
           <span className={`${s.pill} ${s.pillLive}`}>Live</span>
+          <ThemeToggle />
         </div>
         <h1 className={s.meetTitle}>Meeting @guy</h1>
         <section className={s.card}>

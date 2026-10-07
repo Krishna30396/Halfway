@@ -3,18 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Map as MapLibreMap, Marker, setWorkerUrl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { STYLE_URL, add3dBuildings, useThemeMode } from '@/lib/mapStyle';
 import s from './NavigationMap.module.css';
 
 setWorkerUrl('/vendor/maplibre-gl-worker.mjs');
 
 const PITCH = 58;
 const ZOOM = 17.2;
-
-function isDark() {
-  const mode = document.documentElement.getAttribute('data-mode');
-  if (mode === 'dark' || mode === 'light') return mode === 'dark';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches;
-}
 
 const toLngLat = (p) => [p.lng, p.lat];
 const line = (coords) => ({
@@ -64,14 +59,19 @@ export default function NavigationMap({
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markers = useRef({});
-  const [ready, setReady] = useState(false);
+  // Bumped every time a style finishes loading (first load and theme switches),
+  // since a new style drops our route layers and they must be re-added.
+  const [styleVersion, setStyleVersion] = useState(0);
   const [paused, setPaused] = useState(false);
+  const mode = useThemeMode();
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
   useEffect(() => {
     const start = focus || dest;
     const map = new MapLibreMap({
       container: containerRef.current,
-      style: `https://tiles.openfreemap.org/styles/${isDark() ? 'dark' : 'liberty'}`,
+      style: STYLE_URL[mode],
       center: start ? toLngLat(start) : [78.39, 17.45],
       zoom: ZOOM,
       pitch: PITCH,
@@ -81,6 +81,7 @@ export default function NavigationMap({
     mapRef.current = map;
 
     const addLayers = () => {
+      add3dBuildings(map, modeRef.current);
       for (const id of ['alt', 'route']) {
         if (map.getSource(id)) continue;
         map.addSource(id, { type: 'geojson', data: line([]) });
@@ -104,9 +105,9 @@ export default function NavigationMap({
           },
         });
       }
-      setReady(true);
+      setStyleVersion((v) => v + 1);
     };
-    map.on('load', addLayers);
+    map.on('style.load', addLayers);
 
     // Any finger on the map pauses following until "Re-centre" is tapped.
     const pause = (e) => e.originalEvent && setPaused(true);
@@ -123,14 +124,22 @@ export default function NavigationMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const appliedMode = useRef(mode);
   useEffect(() => {
     const map = mapRef.current;
-    if (!ready || !map) return;
+    if (!map || mode === appliedMode.current) return;
+    appliedMode.current = mode;
+    map.setStyle(STYLE_URL[mode]);
+  }, [mode]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!styleVersion || !map) return;
     map.getSource('route')?.setData(line(overview ? [] : route));
     map.getSource('alt')?.setData(line(overview ? [] : altRoute));
     map.setPaintProperty('route-line', 'line-color', routeColor);
     map.setPaintProperty('alt-line', 'line-color', altRouteColor);
-  }, [ready, route, altRoute, routeColor, altRouteColor, overview]);
+  }, [styleVersion, route, altRoute, routeColor, altRouteColor, overview]);
 
   // Switching views swaps my marker between arrow and pin. Declared
   // before the marker effect so the old markers are gone before re-placing.

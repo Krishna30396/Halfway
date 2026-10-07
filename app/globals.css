@@ -86,27 +86,6 @@ a {
   border-radius: 2px;
 }
 
-.tiles-muted .leaflet-tile-pane {
-  filter: grayscale(0.92) saturate(0.3) brightness(1.04) contrast(0.92);
-}
-
-[data-mode="dark"] .leaflet-tile-pane {
-  filter: brightness(0.7) invert(1) contrast(1.3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
-}
-
-[data-mode="dark"] .tiles-muted .leaflet-tile-pane {
-  filter: brightness(0.7) invert(1) contrast(1.3) hue-rotate(200deg) saturate(0.15) brightness(0.7);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-mode="light"]) .leaflet-tile-pane {
-    filter: brightness(0.7) invert(1) contrast(1.3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
-  }
-  :root:not([data-mode="light"]) .tiles-muted .leaflet-tile-pane {
-    filter: brightness(0.7) invert(1) contrast(1.3) hue-rotate(200deg) saturate(0.15) brightness(0.7);
-  }
-}
-
 .pulse-pin {
   width: 12px;
   height: 12px;

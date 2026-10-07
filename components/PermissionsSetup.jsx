@@ -234,7 +234,7 @@ export default function PermissionsSetup() {
                 </div>
                 <p className={s.why}>{it.state === 'blocked' && it.blockedHelp ? it.blockedHelp : it.why}</p>
                 {notes[it.key] && <p className={s.note}>{notes[it.key]}</p>}
-                {it.state !== 'on' && it.state !== 'unsupported' && (
+                {it.state !== 'on' && it.state !== 'unsupported' && !(it.state === 'blocked' && !native) && (
                   <div className={s.actions}>
                     {it.state === 'blocked' ? (
                       <button type="button" className={s.yes} onClick={allow(it.key, openAppSettings)}>

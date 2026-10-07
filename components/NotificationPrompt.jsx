@@ -31,15 +31,14 @@ export default function NotificationPrompt() {
   useEffect(() => {
     if (!user || pathname?.startsWith('/auth')) return;
     if (isNativeApp()) {
-      if (snoozed()) return;
       let t;
       let alive = true;
       nativePushPermission()
         .then((p) => {
           if (!alive) return;
-          if (p === 'prompt' || p === 'prompt-with-rationale') {
-            t = setTimeout(() => setOpen(true), 1500);
-          } else if (p === 'granted' && !nativePushRegistered()) {
+          // Asking now happens on the Set up Halfway screen (PermissionsSetup);
+          // here we only keep an already-allowed phone registered.
+          if (p === 'granted' && !nativePushRegistered()) {
             enablePush(user.id).catch(() => {});
           }
         })
@@ -59,10 +58,7 @@ export default function NotificationPrompt() {
         document.removeEventListener('visibilitychange', retry);
       };
     }
-    if (!pushSupported() || Notification.permission !== 'default' || snoozed()) return;
-    if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) return;
-    const t = setTimeout(() => setOpen(true), 1500);
-    return () => clearTimeout(t);
+    // Browsers: PermissionsSetup asks; nothing to do here.
   }, [user, pathname]);
 
   if (!open) return null;

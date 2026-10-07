@@ -1,0 +1,161 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background: rgba(15, 21, 18, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 480px;
+  max-height: 92dvh;
+  overflow-y: auto;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--contour);
+  border-radius: 20px 20px 0 0;
+  padding: 22px 18px calc(18px + env(safe-area-inset-bottom));
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.3);
+  animation: rise 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (min-width: 640px) {
+  .scrim {
+    align-items: center;
+  }
+  .sheet {
+    border-radius: 20px;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+.title {
+  font-size: 22px;
+  margin: 0 0 6px;
+}
+
+.lead {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.item {
+  border: 1px solid var(--contour);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 15px;
+}
+
+.chip {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.on {
+  background: color-mix(in srgb, var(--route) 18%, var(--panel));
+  color: var(--route);
+}
+
+.off {
+  background: color-mix(in srgb, var(--ink) 8%, var(--panel));
+  color: var(--muted);
+}
+
+.blocked {
+  background: color-mix(in srgb, #b0563a 18%, var(--panel));
+  color: #b0563a;
+}
+
+.skipped {
+  background: transparent;
+  color: var(--muted);
+  border: 1px dashed var(--contour);
+}
+
+.why {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--route) 10%, var(--panel));
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.yes,
+.no,
+.done {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.yes {
+  flex: 1;
+  background: var(--route);
+  color: #fff;
+  border: 0;
+}
+
+.yes:disabled {
+  opacity: 0.6;
+}
+
+.no {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--contour);
+}
+
+.done {
+  width: 100%;
+  margin-top: 14px;
+  background: var(--ink);
+  color: var(--panel);
+  border: 0;
+}

@@ -11,6 +11,7 @@ import {
 } from '@/lib/push';
 import { isNativeApp, getAlertSettings } from '@/lib/native';
 import { sendTestNotification } from '@/lib/notify';
+import { OPEN_PERMISSIONS_EVENT } from './PermissionsSetup';
 import s from './Social.module.css';
 
 // Inside the app: are alerts allowed to pop up and show on the lock screen?
@@ -62,11 +63,13 @@ function TestAlert({ alertCheck }) {
         <button type="button" className={`${s.secondary} ${s.small}`} onClick={run} disabled={phase === 'waiting'}>
           {phase === 'waiting' ? 'Sending in 5 s…' : 'Send a test alert'}
         </button>
-        {alertCheck?.plugin && (
-          <button type="button" className={`${s.secondary} ${s.small}`} onClick={() => alertCheck.plugin.open()}>
-            Alert settings
-          </button>
-        )}
+        <button
+          type="button"
+          className={`${s.secondary} ${s.small}`}
+          onClick={() => window.dispatchEvent(new Event(OPEN_PERMISSIONS_EVENT))}
+        >
+          App permissions
+        </button>
       </div>
       {msg && <p className={s.hint}>{msg}</p>}
       {isNativeApp() && (

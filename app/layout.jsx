@@ -6,6 +6,7 @@ import InstallPrompt from '@/components/InstallPrompt';
 import MeetupInbox from '@/components/MeetupInbox';
 import FriendsWidget from '@/components/FriendsWidget';
 import NotificationPrompt from '@/components/NotificationPrompt';
+import PermissionsSetup from '@/components/PermissionsSetup';
 import { Analytics } from '@vercel/analytics/next';
 import Script from 'next/script';
 
@@ -69,6 +70,7 @@ export default function RootLayout({ children }) {
           <MeetupInbox />
           <FriendsWidget />
           <NotificationPrompt />
+          <PermissionsSetup />
           <ServiceWorkerRegistrar />
           <InstallPrompt />
         </AuthProvider>

@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { pointAtFraction } from '@/lib/geo';
 import { useLiveRoute, fmtKm, fmtMin } from '@/lib/navigation';
 import NavBanner from '@/components/NavBanner';
+import FriendSpot from '@/components/FriendSpot';
 import s from '@/components/Social.module.css';
 
 const NavigationMap = dynamic(() => import('@/components/NavigationMap'), { ssr: false });
@@ -58,7 +59,6 @@ export default function NavSim() {
   if (!params) return null;
   const viewing = pov || params.pov;
   const viewNav = viewing === 'friend' ? friendNav : myNav;
-  const viewPos = viewing === 'friend' ? friendPos : myPos;
 
   // Same layout and controls as the real meetup screen in navigation mode.
   return (
@@ -82,7 +82,7 @@ export default function NavSim() {
               My route
             </button>
             <button type="button" className={viewing === 'friend' ? s.povOn : s.pov} onClick={() => setPov('friend')}>
-              @guy&apos;s route
+              @guy&apos;s location
             </button>
           </div>
         </section>
@@ -114,28 +114,23 @@ export default function NavSim() {
 
       <div className={s.meetMap}>
         <NavigationMap
-          focus={viewPos}
-          focusIs={viewing}
-          bearing={viewNav.progress?.bearing ?? 0}
-          route={viewNav.nav?.coords}
-          routeColor={viewing === 'friend' ? '#6E4F8C' : '#2F6F5E'}
-          altRoute={(viewing === 'friend' ? myNav : friendNav).nav?.coords}
-          altRouteColor={viewing === 'friend' ? '#2F6F5E' : '#6E4F8C'}
+          focus={myPos}
+          overview={viewing === 'friend'}
+          bearing={myNav.progress?.bearing ?? 0}
+          route={myNav.nav?.coords}
           me={myPos}
           meLetter="K"
           friend={friendPos}
           friendLetter="G"
           dest={DEST}
         />
-        <NavBanner
-          who={viewing === 'friend' ? '@guy' : 'You'}
-          isMe={viewing === 'me'}
-          pos={viewPos}
-          live={viewNav}
-          arrived={false}
-        />
+        {viewing === 'friend' ? (
+          <FriendSpot name="@guy" me={myPos} friend={friendPos && { ...friendPos, updated_at: new Date().toISOString() }} now={Date.now()} />
+        ) : (
+          <NavBanner who="You" isMe pos={myPos} live={myNav} arrived={false} />
+        )}
         <button type="button" className={s.recenter} onClick={() => setPov(viewing === 'me' ? 'friend' : 'me')}>
-          {viewing === 'me' ? 'Follow @guy' : 'Follow me'}
+          {viewing === 'me' ? 'See @guy' : 'Back to my route'}
         </button>
       </div>
 

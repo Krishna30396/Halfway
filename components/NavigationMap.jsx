@@ -44,12 +44,12 @@ function destEl() {
 }
 
 /**
- * Driver's-eye navigation view: tilted, rotated to the direction of travel, and
- * centred on whoever is being followed.
+ * Driver's-eye navigation view: tilted and rotated to the direction of travel,
+ * centred on me. With `overview`, a flat north-up map that just fits me and my friend.
  */
 export default function NavigationMap({
   focus,
-  focusIs = 'me',
+  overview = false,
   bearing = 0,
   route,
   routeColor = '#2F6F5E',
@@ -126,13 +126,13 @@ export default function NavigationMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
-    map.getSource('route')?.setData(line(route));
-    map.getSource('alt')?.setData(line(altRoute));
+    map.getSource('route')?.setData(line(overview ? [] : route));
+    map.getSource('alt')?.setData(line(overview ? [] : altRoute));
     map.setPaintProperty('route-line', 'line-color', routeColor);
     map.setPaintProperty('alt-line', 'line-color', altRouteColor);
-  }, [ready, route, altRoute, routeColor, altRouteColor]);
+  }, [ready, route, altRoute, routeColor, altRouteColor, overview]);
 
-  // Switching whose view we follow swaps which marker is the arrow. Declared
+  // Switching views swaps my marker between arrow and pin. Declared
   // before the marker effect so the old markers are gone before re-placing.
   useEffect(() => {
     for (const key of ['me', 'friend']) {
@@ -140,7 +140,7 @@ export default function NavigationMap({
       delete markers.current[key];
     }
     setPaused(false);
-  }, [focusIs]);
+  }, [overview]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -165,15 +165,34 @@ export default function NavigationMap({
       m.setLngLat(toLngLat(pos));
       if (rotation != null) m.setRotation(rotation);
     };
-    const meFollowed = focusIs === 'me';
-    place('me', me, () => (meFollowed ? chevronEl('#2F6F5E') : pinEl(meLetter, '#2F6F5E')), meFollowed ? bearing : null);
-    place('friend', friend, () => (!meFollowed ? chevronEl('#6E4F8C') : pinEl(friendLetter, '#6E4F8C')), !meFollowed ? bearing : null);
-    place('dest', dest, destEl, null);
-  }, [me, friend, dest, bearing, focusIs, meLetter, friendLetter]);
+    place('me', me, () => (overview ? pinEl(meLetter, '#2F6F5E') : chevronEl('#2F6F5E')), overview ? null : bearing);
+    place('friend', friend, () => pinEl(friendLetter, '#6E4F8C'), null);
+    place('dest', overview ? null : dest, destEl, null);
+  }, [me, friend, dest, bearing, overview, meLetter, friendLetter]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !focus || paused) return;
+    if (!map || !overview || paused) return;
+    const pts = [me, friend].filter(Boolean);
+    if (!pts.length) return;
+    if (pts.length === 1) {
+      map.easeTo({ center: toLngLat(pts[0]), zoom: 15, bearing: 0, pitch: 0, padding: 0, duration: 700 });
+      return;
+    }
+    const lngs = pts.map((p) => p.lng);
+    const lats = pts.map((p) => p.lat);
+    map.fitBounds(
+      [
+        [Math.min(...lngs), Math.min(...lats)],
+        [Math.max(...lngs), Math.max(...lats)],
+      ],
+      { padding: { top: 130, bottom: 110, left: 60, right: 60 }, bearing: 0, pitch: 0, maxZoom: 16, duration: 700 }
+    );
+  }, [overview, me?.lat, me?.lng, friend?.lat, friend?.lng, paused]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || overview || !focus || paused) return;
     const h = map.getContainer().clientHeight;
     map.easeTo({
       center: toLngLat(focus),
@@ -185,7 +204,7 @@ export default function NavigationMap({
       duration: 900,
       essential: true,
     });
-  }, [focus?.lat, focus?.lng, bearing, paused]);
+  }, [focus?.lat, focus?.lng, bearing, paused, overview]);
 
   return (
     <div className={s.wrap}>

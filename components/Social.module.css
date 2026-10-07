@@ -445,6 +445,11 @@
   text-align: center;
 }
 
+.navArrowFriend {
+  font-size: 26px;
+  background: #6E4F8C;
+}
+
 .navText {
   flex: 1;
   min-width: 0;

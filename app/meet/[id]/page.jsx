@@ -15,6 +15,7 @@ import { fetchProfiles, displayName, initialOf } from '@/lib/social';
 import { haversine, pointAtFraction } from '@/lib/geo';
 import { useLiveRoute, fmtKm, fmtMin } from '@/lib/navigation';
 import NavBanner from '@/components/NavBanner';
+import FriendSpot from '@/components/FriendSpot';
 import { CATEGORIES, CATEGORY_COLORS } from '@/lib/categories';
 import s from '@/components/Social.module.css';
 
@@ -601,9 +602,6 @@ export default function MeetPage() {
 
   const navigating = navMode && status === 'live' && !!dest;
   const viewing = pov === 'friend' && friendLoc ? 'friend' : 'me';
-  const viewNav = viewing === 'friend' ? friendNav : myNav;
-  const viewPos = viewing === 'friend' ? friendLoc : myPos;
-  const viewArrived = viewing === 'friend' ? friendArrived : iArrived;
 
   return (
     <div className={`${s.meet} ${navigating ? s.meetNav : ''}`}>
@@ -824,7 +822,7 @@ export default function MeetPage() {
                   onClick={() => setPov('friend')}
                   disabled={!friendLoc}
                 >
-                  {friendName}&apos;s route
+                  {friendName}&apos;s location
                 </button>
               </div>
             </section>
@@ -885,26 +883,21 @@ export default function MeetPage() {
         {navigating ? (
           <>
             <NavigationMap
-              focus={viewPos}
-              focusIs={viewing}
-              bearing={viewNav.progress?.bearing ?? 0}
-              route={viewNav.nav?.coords}
-              routeColor={viewing === 'friend' ? '#6E4F8C' : '#2F6F5E'}
-              altRoute={(viewing === 'friend' ? myNav : friendNav).nav?.coords}
-              altRouteColor={viewing === 'friend' ? '#2F6F5E' : '#6E4F8C'}
+              focus={myPos}
+              overview={viewing === 'friend'}
+              bearing={myNav.progress?.bearing ?? 0}
+              route={myNav.nav?.coords}
               me={myPos}
               meLetter={initialOf(profiles[user.id])}
               friend={friendLoc}
               friendLetter={initialOf(friend)}
               dest={dest}
             />
-            <NavBanner
-              who={viewing === 'friend' ? friendName : 'You'}
-              isMe={viewing === 'me'}
-              pos={viewPos}
-              live={viewNav}
-              arrived={viewArrived}
-            />
+            {viewing === 'friend' ? (
+              <FriendSpot name={friendName} me={myPos} friend={friendLoc} now={now} />
+            ) : (
+              <NavBanner who="You" isMe pos={myPos} live={myNav} arrived={iArrived} />
+            )}
           </>
         ) : (
           <MeetMap
@@ -935,7 +928,7 @@ export default function MeetPage() {
             onClick={() => setPov(viewing === 'me' && friendLoc ? 'friend' : 'me')}
             disabled={!friendLoc}
           >
-            {viewing === 'me' ? `Follow ${friendName}` : 'Follow me'}
+            {viewing === 'me' ? `See ${friendName}` : 'Back to my route'}
           </button>
         ) : (
           <button type="button" className={s.recenter} onClick={() => setRecenter((n) => n + 1)}>

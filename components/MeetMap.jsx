@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   MapContainer,
   Marker,
@@ -14,6 +14,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import VectorBaseLayer from './VectorBaseLayer';
 import { CATEGORY_COLORS } from '@/lib/categories';
+import { glideMarker } from '@/lib/liveTracking';
 
 const esc = (t) =>
   String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -81,6 +82,33 @@ function PanTo({ target }) {
     if (target) map.panTo([target.lat, target.lng]);
   }, [map, target?.lat, target?.lng]);
   return null;
+}
+
+// The friend's updates arrive every few seconds; glide between them instead of
+// letting react-leaflet jump the marker (it only sees the first position).
+function GlidingMarker({ lat, lng, children, ...props }) {
+  const ref = useRef(null);
+  const first = useRef([lat, lng]);
+  const glide = useRef({});
+  useEffect(() => {
+    const m = ref.current;
+    if (!m) return;
+    glideMarker(
+      glide.current,
+      () => {
+        const p = m.getLatLng();
+        return [p.lat, p.lng];
+      },
+      (p) => m.setLatLng(p),
+      [lat, lng]
+    );
+  }, [lat, lng]);
+  useEffect(() => () => cancelAnimationFrame(glide.current.raf), []);
+  return (
+    <Marker ref={ref} position={first.current} {...props}>
+      {children}
+    </Marker>
+  );
 }
 
 function Clicks({ onClick }) {
@@ -188,13 +216,14 @@ export default function MeetMap({
       )}
 
       {friend && (
-        <Marker
-          position={[friend.lat, friend.lng]}
+        <GlidingMarker
+          lat={friend.lat}
+          lng={friend.lng}
           icon={personIcon(friendLetter || '?', '#6E4F8C', false)}
           zIndexOffset={600}
         >
           <Tooltip direction="top" offset={[0, -16]}>{friendName}</Tooltip>
-        </Marker>
+        </GlidingMarker>
       )}
 
       {me && (

@@ -252,7 +252,7 @@ export default function FriendsWidget() {
                   )}
                 </section>
 
-                <NotificationToggle />
+                <NotificationToggle showTest />
               </>
             )}
           </div>

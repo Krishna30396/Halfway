@@ -6,6 +6,8 @@ import { haversine } from '@/lib/geo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+// The test notification waits a few seconds so there's time to lock the phone.
+export const maxDuration = 30;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ARRIVE_KM = 0.3;
@@ -180,7 +182,7 @@ export async function POST(request) {
     return fail('Bad request.', 400);
   }
   const { type, id } = body || {};
-  if (typeof id !== 'string' || !UUID_RE.test(id)) return fail('Bad id.', 400);
+  if (type !== 'test' && (typeof id !== 'string' || !UUID_RE.test(id))) return fail('Bad id.', 400);
 
   let recipient;
   let title;
@@ -200,7 +202,15 @@ export async function POST(request) {
     return data?.display_name || (data?.username ? `@${data.username}` : 'Your friend');
   };
 
-  if (FRIEND_TYPES[type]) {
+  if (type === 'test') {
+    // Only ever to the caller's own devices.
+    recipient = caller;
+    title = 'Halfway test alert';
+    text = 'If you can read this on your lock screen, alerts will reach you.';
+    url = '/friends';
+    tag = 'test';
+    urgency = 'high';
+  } else if (FRIEND_TYPES[type]) {
     const rule = FRIEND_TYPES[type];
     const { data: f } = await admin.from('friendships').select('*').eq('id', id).maybeSingle();
     if (!f || f.status !== rule.status || f[rule.sender] !== caller) {
@@ -246,6 +256,10 @@ export async function POST(request) {
   }
 
   if (isDuplicate(`${caller}:${type}:${id}`)) return Response.json({ ok: true, sent: 0 });
+  if (type === 'test') {
+    const delay = Math.min(10, Math.max(0, Number(body.delaySec) || 0));
+    await new Promise((r) => setTimeout(r, delay * 1000));
+  }
 
   let sent = 0;
 
@@ -292,7 +306,16 @@ export async function POST(request) {
         android: {
           priority: 'high',
           ttl: ttl * 1000,
-          notification: { channelId: 'halfway_alerts', tag, sound: 'default', defaultVibrateTimings: true },
+          // Public + max priority: shown in full on the lock screen and as a
+          // heads-up banner over other apps (the channel is high-importance too).
+          notification: {
+            channelId: 'halfway_alerts',
+            tag,
+            sound: 'default',
+            defaultVibrateTimings: true,
+            visibility: 'public',
+            notificationPriority: 'PRIORITY_MAX',
+          },
         },
       });
       sent += res.successCount;

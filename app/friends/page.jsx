@@ -223,7 +223,7 @@ export default function FriendsPage() {
         )}
       </section>
 
-      <NotificationToggle />
+      <NotificationToggle showTest />
 
       {/* ---- Live / pending meetups ---- */}
       {meetups.length > 0 && (

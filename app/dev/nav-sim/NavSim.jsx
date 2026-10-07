@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { pointAtFraction } from '@/lib/geo';
 import { useLiveRoute, fmtKm, fmtMin } from '@/lib/navigation';
+import { withSpeed } from '@/lib/liveTracking';
 import NavBanner from '@/components/NavBanner';
 import FriendSpot from '@/components/FriendSpot';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -53,6 +54,13 @@ export default function NavSim() {
   const fFriend = params ? Math.min(1, params.friend + tick * 0.004) : 0;
   const myPos = paths ? at(paths.me, fMe) : null;
   const friendPos = paths ? at(paths.friend, fFriend) : null;
+
+  // Like the realtime handler: each new friend fix gets a speed from the last one.
+  const [friendLoc, setFriendLoc] = useState(null);
+  useEffect(() => {
+    if (friendPos) setFriendLoc((prev) => withSpeed(prev, { ...friendPos, updated_at: new Date().toISOString() }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [friendPos?.lat, friendPos?.lng]);
 
   const myNav = useLiveRoute(myPos, DEST);
   const friendNav = useLiveRoute(friendPos, DEST, { offRouteM: 150, minGapMs: 30000 });
@@ -127,7 +135,7 @@ export default function NavSim() {
           dest={DEST}
         />
         {viewing === 'friend' ? (
-          <FriendSpot name="@guy" me={myPos} friend={friendPos && { ...friendPos, updated_at: new Date().toISOString() }} now={Date.now()} />
+          <FriendSpot name="@guy" me={myPos} friend={friendLoc} now={Date.now()} />
         ) : (
           <NavBanner who="You" isMe pos={myPos} live={myNav} arrived={false} />
         )}

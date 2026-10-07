@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Map as MapLibreMap, Marker, setWorkerUrl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { STYLE_URL, add3dBuildings, useThemeMode } from '@/lib/mapStyle';
+import { glideMarker } from '@/lib/liveTracking';
 import s from './NavigationMap.module.css';
 
 setWorkerUrl('/vendor/maplibre-gl-worker.mjs');
@@ -59,6 +60,7 @@ export default function NavigationMap({
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markers = useRef({});
+  const glide = useRef({});
   // Bumped every time a style finishes loading (first load and theme switches),
   // since a new style drops our route layers and they must be re-added.
   const [styleVersion, setStyleVersion] = useState(0);
@@ -116,6 +118,7 @@ export default function NavigationMap({
     map.on('pitchstart', pause);
 
     return () => {
+      Object.values(glide.current).forEach((g) => cancelAnimationFrame(g.raf));
       Object.values(markers.current).forEach((m) => m.remove());
       markers.current = {};
       map.remove();
@@ -171,7 +174,20 @@ export default function NavigationMap({
           .addTo(map);
         markers.current[key] = m;
       }
-      m.setLngLat(toLngLat(pos));
+      if (key === 'friend') {
+        // Their updates arrive every few seconds; glide between them.
+        glideMarker(
+          (glide.current[key] ||= {}),
+          () => {
+            const { lng, lat } = m.getLngLat();
+            return [lat, lng];
+          },
+          ([lat, lng]) => m.setLngLat([lng, lat]),
+          [pos.lat, pos.lng]
+        );
+      } else {
+        m.setLngLat(toLngLat(pos));
+      }
       if (rotation != null) m.setRotation(rotation);
     };
     place('me', me, () => (overview ? pinEl(meLetter, '#2F6F5E') : chevronEl('#2F6F5E')), overview ? null : bearing);

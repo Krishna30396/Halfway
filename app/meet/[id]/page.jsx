@@ -15,6 +15,7 @@ import { notify } from '@/lib/notify';
 import { fetchProfiles, displayName, initialOf } from '@/lib/social';
 import { haversine, pointAtFraction } from '@/lib/geo';
 import { useLiveRoute, fmtKm, fmtMin } from '@/lib/navigation';
+import { sendGapMs, withSpeed, fmtSpeed } from '@/lib/liveTracking';
 import NavBanner from '@/components/NavBanner';
 import FriendSpot from '@/components/FriendSpot';
 import { CATEGORIES, CATEGORY_COLORS } from '@/lib/categories';
@@ -30,15 +31,14 @@ const NavigationMap = dynamic(() => import('@/components/NavigationMap'), {
 });
 
 const ARRIVE_KM = 0.15;
-const MIN_SEND_MS = 8000;
 const HEARTBEAT_MS = 30000;
-const MIN_MOVE_KM = 0.02;
+const MIN_MOVE_KM = 0.01;
 
 const categoryLabel = (id) => CATEGORIES.find((c) => c.id === id)?.label || '';
 
 function fmtAgo(iso, now) {
   const sec = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
-  if (sec < 15) return 'just now';
+  if (sec < 3) return 'just now';
   if (sec < 60) return `${sec}s ago`;
   const min = Math.round(sec / 60);
   return min < 60 ? `${min} min ago` : 'over an hour ago';
@@ -106,7 +106,7 @@ export default function MeetPage() {
     }
     setMeetup(data);
     const { data: rows } = await supabase.from('live_locations').select('*').eq('meetup_id', id);
-    setLocs(Object.fromEntries((rows || []).map((r) => [r.user_id, r])));
+    setLocs((cur) => Object.fromEntries((rows || []).map((r) => [r.user_id, withSpeed(cur[r.user_id], r)])));
   }, [supabase, user, id]);
 
   useEffect(() => {
@@ -122,7 +122,7 @@ export default function MeetPage() {
         { event: '*', schema: 'public', table: 'live_locations', filter: `meetup_id=eq.${id}` },
         (p) => {
           if (p.eventType === 'DELETE') load();
-          else setLocs((cur) => ({ ...cur, [p.new.user_id]: p.new }));
+          else setLocs((cur) => ({ ...cur, [p.new.user_id]: withSpeed(cur[p.new.user_id], p.new) }));
         }
       )
       .subscribe();
@@ -142,10 +142,11 @@ export default function MeetPage() {
     fetchProfiles([meetup.created_by, meetup.invitee]).then(setProfiles);
   }, [meetup?.created_by, meetup?.invitee]);
 
+  // Ticks every second while sharing so "updated 4s ago" stays honest.
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 5000);
+    const t = setInterval(() => setNow(Date.now()), sharing ? 1000 : 5000);
     return () => clearInterval(t);
-  }, []);
+  }, [sharing]);
 
   useEffect(() => setNative(isNativeApp()), []);
 
@@ -156,7 +157,12 @@ export default function MeetPage() {
     if (!sharing || !isNativeApp() || !navigator.geolocation) return;
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+        const p = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          speed: pos.coords.speed,
+        };
         myPosRef.current = p;
         setMyPos(p);
       },
@@ -182,7 +188,7 @@ export default function MeetPage() {
               backgroundMessage: `With ${friendName} for this meetup`,
               requestPermissions: true,
               stale: false,
-              distanceFilter: 15,
+              distanceFilter: 5,
             },
             (location, error) => {
               if (!alive) return;
@@ -195,7 +201,12 @@ export default function MeetPage() {
                 return;
               }
               if (!location) return;
-              const p = { lat: location.latitude, lng: location.longitude, accuracy: location.accuracy };
+              const p = {
+                lat: location.latitude,
+                lng: location.longitude,
+                accuracy: location.accuracy,
+                speed: location.speed,
+              };
               myPosRef.current = p;
               setMyPos(p);
               setGeoError(null);
@@ -218,7 +229,12 @@ export default function MeetPage() {
     }
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+        const p = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          speed: pos.coords.speed,
+        };
         myPosRef.current = p;
         setMyPos(p);
         setGeoError(null);
@@ -251,7 +267,9 @@ export default function MeetPage() {
       const last = lastSent.current;
       if (!force && last) {
         const moved = haversine([last.lat, last.lng], [p.lat, p.lng]);
-        if (t - last.t < MIN_SEND_MS || (moved < MIN_MOVE_KM && t - last.t < HEARTBEAT_MS)) return;
+        // The GPS's own speed when it has one, else worked out since the last upload.
+        const speed = Number.isFinite(p.speed) && p.speed >= 0 ? p.speed : (moved * 1e6) / Math.max(1, t - last.t);
+        if (t - last.t < sendGapMs(speed) || (moved < MIN_MOVE_KM && t - last.t < HEARTBEAT_MS)) return;
       }
       lastSent.current = { t, lat: p.lat, lng: p.lng };
       const row = {
@@ -853,6 +871,7 @@ export default function MeetPage() {
                       <>
                         {(friendNav.progress?.etaMin ?? friendLoc.eta_min) != null &&
                           `~${fmtMin(friendNav.progress?.etaMin ?? friendLoc.eta_min)} · `}
+                        {fmtSpeed(friendLoc.speedKmh) && `${fmtSpeed(friendLoc.speedKmh)} · `}
                         updated {fmtAgo(friendLoc.updated_at, now)}
                       </>
                     ) : (

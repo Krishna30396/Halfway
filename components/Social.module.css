@@ -712,3 +712,17 @@
     animation: none;
   }
 }
+
+.testAlert {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.testAlert .hint {
+  margin: 0;
+}
+
+.testAlert .actions {
+  margin-top: 0;
+}

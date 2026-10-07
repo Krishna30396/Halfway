@@ -30,6 +30,10 @@ export const metadata = {
   description:
     'Two locations in. One fair meeting point out. Find the halfway point between two people along real roads, snapped to a real town, with places to meet.',
   manifest: '/manifest.json',
+  // iPhone "Add to Home Screen": a real icon (iOS ignores the manifest icons)
+  // and a full-screen app without Safari's bars.
+  icons: { apple: '/icons/apple-touch-icon.png' },
+  appleWebApp: { capable: true, title: 'Halfway', statusBarStyle: 'default' },
 };
 
 export const viewport = {

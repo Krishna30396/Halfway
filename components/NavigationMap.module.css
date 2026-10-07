@@ -39,7 +39,7 @@
 .recentre {
   position: absolute;
   left: 50%;
-  bottom: 24px;
+  bottom: 52px;
   transform: translateX(-50%);
   z-index: 5;
   min-height: 44px;

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { pointAtFraction } from '@/lib/geo';
-import { useLiveRoute } from '@/lib/navigation';
+import { useLiveRoute, fmtKm, fmtMin } from '@/lib/navigation';
 import NavBanner from '@/components/NavBanner';
 import s from '@/components/Social.module.css';
 
@@ -28,6 +28,7 @@ export default function NavSim() {
   const [params, setParams] = useState(null);
   const [paths, setPaths] = useState(null);
   const [tick, setTick] = useState(0);
+  const [pov, setPov] = useState(null);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -55,13 +56,63 @@ export default function NavSim() {
   const friendNav = useLiveRoute(friendPos, DEST, { offRouteM: 150, minGapMs: 30000 });
 
   if (!params) return null;
-  const viewing = params.pov;
+  const viewing = pov || params.pov;
   const viewNav = viewing === 'friend' ? friendNav : myNav;
   const viewPos = viewing === 'friend' ? friendPos : myPos;
 
+  // Same layout and controls as the real meetup screen in navigation mode.
   return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ position: 'relative', flex: 1 }} className={s.meetNav}>
+    <div className={`${s.meet} ${s.meetNav}`}>
+      <aside className={s.meetPanel}>
+        <div className={s.topBar}>
+          <span className={s.back}>← Friends</span>
+          <span className={`${s.pill} ${s.pillLive}`}>Live</span>
+        </div>
+        <h1 className={s.meetTitle}>Meeting @guy</h1>
+        <section className={s.card}>
+          <h2 className={s.cardTitle}>Meeting at</h2>
+          <p className={s.proposalName}>{DEST.name}</p>
+          <div className={s.actions}>
+            <button type="button" className={s.secondary}>
+              Exit navigation
+            </button>
+          </div>
+          <div className={s.povSwitch} role="tablist" aria-label="Whose route to follow">
+            <button type="button" className={viewing === 'me' ? s.povOn : s.pov} onClick={() => setPov('me')}>
+              My route
+            </button>
+            <button type="button" className={viewing === 'friend' ? s.povOn : s.pov} onClick={() => setPov('friend')}>
+              @guy&apos;s route
+            </button>
+          </div>
+        </section>
+        <section className={s.card}>
+          <div className={s.stat}>
+            <div className={s.avatar}>K</div>
+            <div className={s.statMain}>
+              <div className={s.personName}>You</div>
+              <div className={s.personSub}>
+                {myNav.progress?.etaMin != null ? `~${fmtMin(myNav.progress.etaMin)} by road` : 'Locating…'}
+              </div>
+            </div>
+            {myNav.progress && <div className={s.statValue}>{fmtKm(myNav.progress.remainingKm)}</div>}
+          </div>
+          <div className={s.stat}>
+            <div className={`${s.avatar} ${s.avatarAlt}`}>G</div>
+            <div className={s.statMain}>
+              <div className={s.personName}>@guy</div>
+              <div className={s.personSub}>
+                {friendNav.progress?.etaMin != null
+                  ? `~${fmtMin(friendNav.progress.etaMin)} · updated just now`
+                  : 'Waiting…'}
+              </div>
+            </div>
+            {friendNav.progress && <div className={s.statValue}>{fmtKm(friendNav.progress.remainingKm)}</div>}
+          </div>
+        </section>
+      </aside>
+
+      <div className={s.meetMap}>
         <NavigationMap
           focus={viewPos}
           focusIs={viewing}
@@ -76,15 +127,21 @@ export default function NavSim() {
           friendLetter="G"
           dest={DEST}
         />
-        <NavBanner who={viewing === 'friend' ? '@guy' : 'You'} isMe={viewing === 'me'} pos={viewPos} live={viewNav} arrived={false} />
+        <NavBanner
+          who={viewing === 'friend' ? '@guy' : 'You'}
+          isMe={viewing === 'me'}
+          pos={viewPos}
+          live={viewNav}
+          arrived={false}
+        />
+        <button type="button" className={s.recenter} onClick={() => setPov(viewing === 'me' ? 'friend' : 'me')}>
+          {viewing === 'me' ? 'Follow @guy' : 'Follow me'}
+        </button>
       </div>
-      <div
-        id="sim-status"
-        style={{ padding: '10px 14px', fontSize: 12, fontFamily: 'monospace', background: 'var(--panel)', color: 'var(--ink)' }}
-      >
-        pov={viewing} me={Math.round(fMe * 100)}% friend={Math.round(fFriend * 100)}% bearing=
-        {Math.round(viewNav.progress?.bearing ?? -1)} route={viewNav.nav ? 'yes' : 'no'} next=
-        {viewNav.progress?.next?.instruction || '-'} error={viewNav.error || '-'}
+
+      <div id="sim-status" hidden>
+        pov={viewing} route={viewNav.nav ? 'yes' : 'no'} next={viewNav.progress?.next?.instruction || '-'} error=
+        {viewNav.error || '-'}
       </div>
     </div>
   );

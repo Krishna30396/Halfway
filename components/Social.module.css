@@ -424,6 +424,11 @@
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
 }
 
+/* Clear the map credits line at the bottom of the navigation map. */
+.meetNav .recenter {
+  bottom: 52px;
+}
+
 /* The banner sits where Leaflet's zoom buttons are; pinch-zoom still works. */
 .meetNav :global(.leaflet-control-zoom) {
   display: none;

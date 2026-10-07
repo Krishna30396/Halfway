@@ -9,7 +9,7 @@ import NotificationToggle from './NotificationToggle';
 import s from './FriendsWidget.module.css';
 
 // Full-screen flows where a floating button would get in the way.
-const HIDDEN_ON = [/^\/friends/, /^\/meet\//, /^\/auth\//];
+const HIDDEN_ON = [/^\/friends/, /^\/meet\//, /^\/auth\//, /^\/dev\//];
 
 function PeopleIcon() {
   return (

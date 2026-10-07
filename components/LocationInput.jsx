@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { loadPlaces, searchPlaces } from '@/lib/localPlaces';
+import { haversine } from '@/lib/geo';
 import styles from './LocationInput.module.css';
 
 export default function LocationInput({ label, marker, value, onSelect, bias }) {
@@ -15,6 +17,13 @@ export default function LocationInput({ label, marker, value, onSelect, bias }) 
   const wrapRef = useRef(null);
   const inputRef = useRef(null);
   const skipNextFetch = useRef(false);
+  // The built-in place list answers every keystroke instantly; the live
+  // geocoder's results join underneath when (if) they arrive.
+  const localRef = useRef([]);
+
+  useEffect(() => {
+    loadPlaces();
+  }, []);
 
   // Keep the field in sync when the value arrives from the URL. Only raise the
   // skip flag when the text actually changes — an identical value would leave
@@ -51,11 +60,23 @@ export default function LocationInput({ label, marker, value, onSelect, bias }) 
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Search failed');
-        setSuggestions(data.results || []);
+        // Live results that the built-in list doesn't already show (same
+        // first word within ~500 m) go underneath it.
+        const local = localRef.current;
+        const fresh = (data.results || []).filter(
+          (r) =>
+            !local.some(
+              (l) =>
+                l.name.split(/[ ,]/)[0].toLowerCase() === r.name.split(/[ ,]/)[0].toLowerCase() &&
+                haversine([l.lat, l.lng], [r.lat, r.lng]) < 0.5
+            )
+        );
+        const merged = [...local.slice(0, fresh.length ? 5 : 8), ...fresh].slice(0, 10);
+        setSuggestions(merged);
         setOpen(true);
-        setHighlight(0);
-        return data.results || [];
+        return merged;
       } catch (err) {
+        if (localRef.current.length) return localRef.current;
         if (err.name !== 'AbortError') {
           setError("Couldn't reach the address search. Try again in a moment.");
           setOpen(true);
@@ -74,14 +95,25 @@ export default function LocationInput({ label, marker, value, onSelect, bias }) 
       return;
     }
     if (text.trim().length < 1) {
+      localRef.current = [];
       setSuggestions([]);
       setOpen(false);
       return;
     }
 
-    // Debounce 350ms; abort the in-flight request when a newer keystroke arrives.
+    // Instant: the built-in list, ranked by distance from you (or the other point).
+    const local = searchPlaces(text.trim(), biasRef.current);
+    localRef.current = local;
+    if (local.length) {
+      setSuggestions(local);
+      setOpen(true);
+      setHighlight(0);
+      setError(null);
+    }
+
+    // Then the live search, debounced; a newer keystroke aborts the old one.
     clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => runSearch(text.trim()), 350);
+    timerRef.current = setTimeout(() => runSearch(text.trim()), local.length ? 300 : 150);
     return () => clearTimeout(timerRef.current);
   }, [text, runSearch]);
 
@@ -181,7 +213,7 @@ export default function LocationInput({ label, marker, value, onSelect, bias }) 
       </div>
       {open && (
         <ul className={styles.dropdown} role="listbox">
-          {loading && <li className={styles.hint}>Searching…</li>}
+          {loading && !suggestions.length && <li className={styles.hint}>Searching…</li>}
           {error && <li className={styles.error}>{error}</li>}
           {!loading && !error && !suggestions.length && (
             <li className={styles.hint}>No matches. Try a broader name.</li>

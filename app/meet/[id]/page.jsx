@@ -16,6 +16,7 @@ import { fetchProfiles, displayName, initialOf } from '@/lib/social';
 import { haversine, pointAtFraction } from '@/lib/geo';
 import { useLiveRoute, fmtKm, fmtMin } from '@/lib/navigation';
 import { sendGapMs, withSpeed, fmtSpeed } from '@/lib/liveTracking';
+import { rememberPosition } from '@/lib/localPlaces';
 import NavBanner from '@/components/NavBanner';
 import FriendSpot from '@/components/FriendSpot';
 import { CATEGORIES, CATEGORY_COLORS } from '@/lib/categories';
@@ -164,6 +165,7 @@ export default function MeetPage() {
     const worse = cur?.accuracy != null && p.accuracy != null && p.accuracy > Math.max(100, cur.accuracy * 2);
     if (cur?.at && worse && Date.now() - cur.at < 60000) return;
     const fix = { ...p, at: Date.now() };
+    if (!(p.accuracy > ROUGH_M)) rememberPosition(p.lat, p.lng);
     myPosRef.current = fix;
     setMyPos(fix);
   }, []);

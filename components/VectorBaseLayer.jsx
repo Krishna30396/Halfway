@@ -5,18 +5,18 @@ import { useMap } from 'react-leaflet';
 import { setWorkerUrl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { maplibreGL } from '@maplibre/maplibre-gl-leaflet';
-import { STYLE_URL, MAP_ATTRIBUTION, useThemeMode } from '@/lib/mapStyle';
+import { MAP_STYLE, MAP_ATTRIBUTION, useThemeMode } from '@/lib/mapStyle';
 
 setWorkerUrl('/vendor/maplibre-gl-worker.mjs');
 
-/** Base map for the Leaflet (2D) maps: OpenFreeMap Liberty or Dark, following the theme. */
+/** Base map for the Leaflet (2D) maps: colourful OpenStreetMap or OpenFreeMap Dark, following the theme. */
 export default function VectorBaseLayer() {
   const map = useMap();
   const mode = useThemeMode();
   const layerRef = useRef(null);
 
   useEffect(() => {
-    const layer = maplibreGL({ style: STYLE_URL[mode], attribution: MAP_ATTRIBUTION }).addTo(map);
+    const layer = maplibreGL({ style: MAP_STYLE[mode], attribution: MAP_ATTRIBUTION[mode] }).addTo(map);
     layerRef.current = layer;
     return () => {
       map.removeLayer(layer);
@@ -26,7 +26,7 @@ export default function VectorBaseLayer() {
   }, [map]);
 
   useEffect(() => {
-    layerRef.current?.getMaplibreMap()?.setStyle(STYLE_URL[mode]);
+    layerRef.current?.getMaplibreMap()?.setStyle(MAP_STYLE[mode]);
   }, [mode]);
 
   return null;

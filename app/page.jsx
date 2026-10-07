@@ -16,6 +16,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import AuthButton from '@/components/AuthButton';
 import SaveButton from '@/components/SaveButton';
 import styles from './page.module.css';
+import { rememberPosition } from '@/lib/localPlaces';
 
 const MapView = dynamic(() => import('@/components/MapView'), {
   ssr: false,
@@ -226,12 +227,14 @@ export default function Home() {
 
     if (!pa && !pb && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) =>
+        (pos) => {
+          rememberPosition(pos.coords.latitude, pos.coords.longitude);
           setPanTarget({
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
             zoom: 13,
-          }),
+          });
+        },
         () => {},
         { maximumAge: 600000, timeout: 8000 }
       );

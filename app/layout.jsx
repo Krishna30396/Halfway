@@ -6,6 +6,11 @@ import InstallPrompt from '@/components/InstallPrompt';
 import MeetupInbox from '@/components/MeetupInbox';
 import FriendsWidget from '@/components/FriendsWidget';
 import NotificationPrompt from '@/components/NotificationPrompt';
+import { Analytics } from '@vercel/analytics/next';
+import Script from 'next/script';
+
+// Optional Google Analytics 4: set NEXT_PUBLIC_GA_ID (G-XXXXXXX) in Vercel to turn it on.
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
 const display = Bricolage_Grotesque({
   subsets: ['latin'],
@@ -67,6 +72,16 @@ export default function RootLayout({ children }) {
           <ServiceWorkerRegistrar />
           <InstallPrompt />
         </AuthProvider>
+        {/* Page views, no cookies; shows up once Analytics is enabled in the Vercel project. */}
+        <Analytics />
+        {GA_ID && (
+          <>
+            <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
+            <Script id="ga4" strategy="afterInteractive">
+              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA_ID}');`}
+            </Script>
+          </>
+        )}
       </body>
     </html>
   );

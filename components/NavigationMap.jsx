@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Map as MapLibreMap, Marker, setWorkerUrl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { STYLE_URL, add3dBuildings, useThemeMode } from '@/lib/mapStyle';
+import { MAP_STYLE, add3dBuildings, useThemeMode } from '@/lib/mapStyle';
 import { glideMarker } from '@/lib/liveTracking';
 import s from './NavigationMap.module.css';
 
@@ -73,7 +73,7 @@ export default function NavigationMap({
     const start = focus || dest;
     const map = new MapLibreMap({
       container: containerRef.current,
-      style: STYLE_URL[mode],
+      style: MAP_STYLE[mode],
       center: start ? toLngLat(start) : [78.39, 17.45],
       zoom: ZOOM,
       pitch: PITCH,
@@ -132,7 +132,7 @@ export default function NavigationMap({
     const map = mapRef.current;
     if (!map || mode === appliedMode.current) return;
     appliedMode.current = mode;
-    map.setStyle(STYLE_URL[mode]);
+    map.setStyle(MAP_STYLE[mode]);
   }, [mode]);
 
   useEffect(() => {

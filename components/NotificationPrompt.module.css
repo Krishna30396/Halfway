@@ -1,0 +1,98 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background: rgba(15, 21, 18, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--contour);
+  border-radius: 18px;
+  padding: 26px 22px 18px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  animation: rise 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+.bell {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--route) 15%, var(--panel));
+  color: var(--route);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+
+.text {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.error {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  text-align: left;
+  background: color-mix(in srgb, var(--error) 12%, var(--panel));
+  color: var(--error);
+}
+
+.primary,
+.secondary {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+}
+
+.primary:disabled {
+  opacity: 0.6;
+}
+
+.secondary {
+  margin-top: 6px;
+  background: none;
+  border: none;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+  }
+}

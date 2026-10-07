@@ -1,0 +1,21 @@
+{
+  "name": "halfway-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor Android shell for Halfway (loads https://halfway-liard.vercel.app)",
+  "scripts": {
+    "icons": "node scripts/generate-icons.mjs",
+    "sync": "cap sync android",
+    "build:release": "cd android && ./gradlew assembleRelease"
+  },
+  "dependencies": {
+    "@capacitor-community/background-geolocation": "1.2.26",
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2",
+    "@capacitor/push-notifications": "8.1.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2",
+    "sharp": "0.35.5"
+  }
+}

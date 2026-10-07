@@ -1,0 +1,28 @@
+{
+  "appId": "app.halfway.meet",
+  "appName": "Halfway",
+  "webDir": "www",
+  "server": {
+    "url": "https://halfway-liard.vercel.app",
+    "cleartext": false,
+    "androidScheme": "https",
+    "errorPath": "index.html"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "useLegacyBridge": true,
+    "backgroundColor": "#1E2A24"
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    },
+    "SystemBars": {
+      "style": "DARK"
+    }
+  }
+}

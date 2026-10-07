@@ -9,7 +9,7 @@ import NotificationToggle from '@/components/NotificationToggle';
 import CategoryChips from '@/components/CategoryChips';
 import LocationInput from '@/components/LocationInput';
 import { getSupabase } from '@/lib/supabase';
-import { isNativeApp, getBackgroundGeolocation } from '@/lib/native';
+import { isNativeApp, getBackgroundGeolocation, nativeUpsert } from '@/lib/native';
 import { notify } from '@/lib/notify';
 import { fetchProfiles, displayName, initialOf } from '@/lib/social';
 import { haversine, pointAtFraction } from '@/lib/geo';
@@ -229,7 +229,7 @@ export default function MeetPage() {
         if (t - last.t < MIN_SEND_MS || (moved < MIN_MOVE_KM && t - last.t < HEARTBEAT_MS)) return;
       }
       lastSent.current = { t, lat: p.lat, lng: p.lng };
-      const { error } = await supabase.from('live_locations').upsert({
+      const row = {
         meetup_id: id,
         user_id: user.id,
         lat: p.lat,
@@ -238,7 +238,24 @@ export default function MeetPage() {
         dist_km: myDistKm,
         eta_min: myEtaMin,
         updated_at: new Date().toISOString(),
-      });
+      };
+      if (isNativeApp()) {
+        try {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          await nativeUpsert({
+            accessToken: session.access_token,
+            table: 'live_locations',
+            onConflict: 'meetup_id,user_id',
+            row,
+          });
+        } catch {
+          lastSent.current = null;
+        }
+        return;
+      }
+      const { error } = await supabase.from('live_locations').upsert(row);
       if (error) lastSent.current = null;
     },
     [sharing, supabase, user, id, myDistKm, myEtaMin]

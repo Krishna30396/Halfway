@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Halfway</string>
+    <string name="title_activity_main">Halfway</string>
+    <string name="package_name">app.halfway.meet</string>
+    <string name="custom_url_scheme">app.halfway.meet</string>
+
+    <!-- @capacitor/push-notifications: default FCM channel (create it from JS with
+         PushNotifications.createChannel({ id: 'halfway_alerts', ... })). -->
+    <string name="default_notification_channel_id">halfway_alerts</string>
+
+    <!-- @capacitor-community/background-geolocation (see plugin README, Android section) -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Live location sharing</string>
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_stat_halfway</string>
+    <string name="capacitor_background_geolocation_notification_color">#C51162</string>
+</resources>

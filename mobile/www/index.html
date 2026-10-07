@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1E2A24">
+  <title>Halfway</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background: #1E2A24; color: #F3F1EA;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; box-sizing: border-box; text-align: center;
+    }
+    .card { max-width: 340px; }
+    .dot { width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 24px;
+      background: rgba(243,241,234,.08); display: flex; align-items: center; justify-content: center; }
+    h1 { font-size: 20px; font-weight: 600; margin: 0 0 8px; }
+    p { font-size: 15px; line-height: 1.5; opacity: .75; margin: 0 0 28px; }
+    button {
+      appearance: none; border: 0; border-radius: 999px; padding: 14px 32px;
+      font: inherit; font-weight: 600; font-size: 15px;
+      background: #F3F1EA; color: #1E2A24; cursor: pointer;
+    }
+    button:active { transform: scale(.97); }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="dot" aria-hidden="true">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F3F1EA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16.1a5 5 0 0 1 7 0"/><path d="M12 20h.01"/><path d="M3 3l18 18"/>
+      </svg>
+    </div>
+    <h1>Halfway needs an internet connection</h1>
+    <p>Check your Wi-Fi or mobile data, then try again.</p>
+    <button id="retry" type="button">Retry</button>
+  </main>
+  <script>
+    var APP_URL = 'https://halfway-liard.vercel.app';
+    document.getElementById('retry').addEventListener('click', function () {
+      window.location.replace(APP_URL);
+    });
+    window.addEventListener('online', function () { window.location.replace(APP_URL); });
+  </script>
+</body>
+</html>

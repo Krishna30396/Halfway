@@ -1,4 +1,6 @@
 import webpush from 'web-push';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
 import { createClient } from '@supabase/supabase-js';
 import { haversine } from '@/lib/geo';
 
@@ -96,19 +98,54 @@ const FRIEND_TYPES = {
   },
 };
 
-let vapidReady = false;
 function getAdmin() {
-  const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  const priv = process.env.VAPID_PRIVATE_KEY;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
-  if (!pub || !priv || !url || !service) return null;
+  if (!url || !service) return null;
+  return createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+let vapidReady = false;
+function webPushReady() {
+  const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const priv = process.env.VAPID_PRIVATE_KEY;
+  if (!pub || !priv) return false;
   if (!vapidReady) {
     webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:hello@halfway.app', pub, priv);
     vapidReady = true;
   }
-  return createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+  return true;
 }
+
+const FCM_APP = 'halfway-fcm';
+let fcmFailed = false;
+function getFcm() {
+  const raw = (process.env.FIREBASE_SERVICE_ACCOUNT || '').trim();
+  if (!raw || fcmFailed) return null;
+  try {
+    const app =
+      getApps().find((a) => a.name === FCM_APP) ||
+      initializeApp(
+        {
+          credential: cert(
+            JSON.parse(raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8'))
+          ),
+        },
+        FCM_APP
+      );
+    return getMessaging(app);
+  } catch (err) {
+    fcmFailed = true;
+    console.error('FIREBASE_SERVICE_ACCOUNT is invalid:', err.message);
+    return null;
+  }
+}
+
+// FCM says this token will never work again (app uninstalled / data cleared).
+const DEAD_FCM_CODES = new Set([
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-registration-token',
+]);
 
 // Collapse double-taps / retries within a short window (per server instance).
 const recent = new Map();
@@ -124,7 +161,11 @@ const fail = (error, status) => Response.json({ error }, { status });
 
 export async function POST(request) {
   const admin = getAdmin();
-  if (!admin) return fail('Notifications are not configured on the server.', 503);
+  const webPush = webPushReady();
+  const fcm = getFcm();
+  if (!admin || (!webPush && !fcm)) {
+    return fail('Notifications are not configured on the server.', 503);
+  }
 
   const token = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
   if (!token) return fail('Not signed in.', 401);
@@ -206,30 +247,63 @@ export async function POST(request) {
 
   if (isDuplicate(`${caller}:${type}:${id}`)) return Response.json({ ok: true, sent: 0 });
 
-  const { data: subs } = await admin
-    .from('push_subscriptions')
-    .select('id, endpoint, p256dh, auth')
-    .eq('user_id', recipient);
-
-  const payload = JSON.stringify({ title, body: text, url, tag, requireInteraction: sticky });
   let sent = 0;
-  await Promise.all(
-    (subs || []).map(async (s) => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-          payload,
-          { TTL: ttl, urgency }
-        );
-        sent++;
-      } catch (err) {
-        // The device unsubscribed or reinstalled — forget it.
-        if (err.statusCode === 404 || err.statusCode === 410) {
-          await admin.from('push_subscriptions').delete().eq('id', s.id);
+
+  const sendWebPush = async () => {
+    if (!webPush) return;
+    const { data: subs } = await admin
+      .from('push_subscriptions')
+      .select('id, endpoint, p256dh, auth')
+      .eq('user_id', recipient);
+
+    const payload = JSON.stringify({ title, body: text, url, tag, requireInteraction: sticky });
+    await Promise.all(
+      (subs || []).map(async (s) => {
+        try {
+          await webpush.sendNotification(
+            { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+            payload,
+            { TTL: ttl, urgency }
+          );
+          sent++;
+        } catch (err) {
+          // The device unsubscribed or reinstalled — forget it.
+          if (err.statusCode === 404 || err.statusCode === 410) {
+            await admin.from('push_subscriptions').delete().eq('id', s.id);
+          }
         }
-      }
-    })
-  );
+      })
+    );
+  };
+
+  const sendFcm = async () => {
+    if (!fcm) return;
+    const { data: devices } = await admin
+      .from('device_tokens')
+      .select('token')
+      .eq('user_id', recipient);
+    const tokens = (devices || []).map((d) => d.token);
+    if (!tokens.length) return;
+    try {
+      const res = await fcm.sendEachForMulticast({
+        tokens,
+        notification: { title, body: text },
+        data: { url, tag },
+        android: {
+          priority: 'high',
+          ttl: ttl * 1000,
+          notification: { channelId: 'halfway_alerts', tag, sound: 'default', defaultVibrateTimings: true },
+        },
+      });
+      sent += res.successCount;
+      const dead = tokens.filter((_, i) => DEAD_FCM_CODES.has(res.responses[i]?.error?.code));
+      if (dead.length) await admin.from('device_tokens').delete().in('token', dead);
+    } catch (err) {
+      console.error('FCM send failed:', err.message);
+    }
+  };
+
+  await Promise.all([sendWebPush(), sendFcm()]);
 
   return Response.json({ ok: true, sent });
 }

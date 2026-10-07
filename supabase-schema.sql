@@ -289,6 +289,24 @@ create policy "Users manage own subscriptions" on push_subscriptions
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- ============================================================================
+-- DEVICE TOKENS — native app (FCM) push; read server-side with the service key
+-- ============================================================================
+create table if not exists device_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  token text not null unique,
+  platform text not null default 'android',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create index if not exists device_tokens_user_id_idx on device_tokens (user_id);
+alter table device_tokens enable row level security;
+
+drop policy if exists "Users manage own tokens" on device_tokens;
+create policy "Users manage own tokens" on device_tokens
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ============================================================================
 -- REALTIME — stream these tables to the app
 -- ============================================================================
 do $$

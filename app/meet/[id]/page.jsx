@@ -9,6 +9,7 @@ import NotificationToggle from '@/components/NotificationToggle';
 import CategoryChips from '@/components/CategoryChips';
 import LocationInput from '@/components/LocationInput';
 import { getSupabase } from '@/lib/supabase';
+import { isNativeApp, getBackgroundGeolocation } from '@/lib/native';
 import { notify } from '@/lib/notify';
 import { fetchProfiles, displayName, initialOf } from '@/lib/social';
 import { haversine, pointAtFraction } from '@/lib/geo';
@@ -48,6 +49,8 @@ export default function MeetPage() {
   const [locs, setLocs] = useState({});
   const [myPos, setMyPos] = useState(null);
   const [geoError, setGeoError] = useState(null);
+  const [geoAttempt, setGeoAttempt] = useState(0);
+  const [native, setNative] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [now, setNow] = useState(() => Date.now());
@@ -138,9 +141,55 @@ export default function MeetPage() {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => setNative(isNativeApp()), []);
+
   // ---- My location: watch while sharing, push to the friend ------------------
   useEffect(() => {
     if (!sharing) return;
+    // In the Android app a foreground service keeps GPS running with the screen off.
+    if (isNativeApp()) {
+      let alive = true;
+      let plugin = null;
+      let watcherId = null;
+      getBackgroundGeolocation()
+        .then((bg) => {
+          plugin = bg;
+          return bg.addWatcher(
+            {
+              backgroundTitle: 'Halfway is sharing your location',
+              backgroundMessage: `With ${friendName} for this meetup`,
+              requestPermissions: true,
+              stale: false,
+              distanceFilter: 15,
+            },
+            (location, error) => {
+              if (!alive) return;
+              if (error) {
+                setGeoError(
+                  error.code === 'NOT_AUTHORIZED'
+                    ? `Location is turned off for Halfway, so ${friendName} can't see you. Tap Open settings, allow Location, then tap Try again.`
+                    : 'Having trouble getting your location — still trying…'
+                );
+                return;
+              }
+              if (!location) return;
+              const p = { lat: location.latitude, lng: location.longitude, accuracy: location.accuracy };
+              myPosRef.current = p;
+              setMyPos(p);
+              setGeoError(null);
+            }
+          );
+        })
+        .then((wid) => {
+          watcherId = wid;
+          if (!alive) plugin.removeWatcher({ id: wid }).catch(() => {});
+        })
+        .catch(() => alive && setGeoError("Couldn't start location sharing. Tap Try again."));
+      return () => {
+        alive = false;
+        if (watcherId) plugin.removeWatcher({ id: watcherId }).catch(() => {});
+      };
+    }
     if (!navigator.geolocation) {
       setGeoError("This device can't share its location.");
       return;
@@ -161,7 +210,7 @@ export default function MeetPage() {
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [sharing, friendName]);
+  }, [sharing, friendName, geoAttempt]);
 
   const myDistKm = dest && myPos ? haversine([myPos.lat, myPos.lng], [dest.lat, dest.lng]) : null;
   const myEtaMin = useMemo(() => {
@@ -312,7 +361,7 @@ export default function MeetPage() {
 
   // ---- Keep the screen awake while travelling (web apps pause GPS when hidden) --
   useEffect(() => {
-    if (status !== 'live' || !('wakeLock' in navigator)) return;
+    if (status !== 'live' || !('wakeLock' in navigator) || isNativeApp()) return;
     let lock = null;
     let cancelled = false;
     const acquire = async () => {
@@ -365,6 +414,10 @@ export default function MeetPage() {
   // A user tap lets the browser show the location prompt again.
   const retryLocation = () => {
     setGeoError(null);
+    if (isNativeApp()) {
+      setGeoAttempt((n) => n + 1);
+      return;
+    }
     navigator.geolocation?.getCurrentPosition(
       (pos) => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
@@ -381,6 +434,11 @@ export default function MeetPage() {
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
   };
+
+  const openLocationSettings = () =>
+    getBackgroundGeolocation()
+      .then((bg) => bg.openSettings())
+      .catch(() => {});
 
   const setManualLocation = (place) => {
     if (!place) return;
@@ -543,6 +601,11 @@ export default function MeetPage() {
               <button type="button" className={s.secondary} onClick={retryLocation}>
                 Try again
               </button>
+              {native && (
+                <button type="button" className={s.secondary} onClick={openLocationSettings}>
+                  Open settings
+                </button>
+              )}
             </div>
             <div style={{ marginTop: 12 }}>
               <LocationInput label="Or type where you are" marker="a" value={null} onSelect={setManualLocation} />
@@ -745,8 +808,9 @@ export default function MeetPage() {
             </section>
 
             <p className={s.hint}>
-              Keep Halfway open on screen while you travel — phones pause location sharing for web
-              apps running in the background.
+              {native
+                ? 'Location keeps sharing in the background — you’ll see a Halfway notification while it’s on.'
+                : 'Keep Halfway open on screen while you travel — phones pause location sharing for web apps running in the background.'}
             </p>
           </>
         )}

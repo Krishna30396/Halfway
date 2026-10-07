@@ -8,3 +8,15 @@ out/
 npm-debug.log*
 .vercel
 .env*
+
+# Firebase / Android
+firebase-debug.log
+*.keystore
+keystore.properties
+google-services.json
+service-account*.json
+mobile/node_modules/
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/.gradle/
+mobile/android/local.properties

@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from './AuthProvider';
-import { enablePush, pushSupported } from '@/lib/push';
+import { enablePush, pushSupported, nativePushPermission, nativePushRegistered } from '@/lib/push';
+import { isNativeApp } from '@/lib/native';
 import s from './NotificationPrompt.module.css';
 
 const DISMISS_KEY = 'halfway-notify-dismissed';
@@ -29,6 +30,25 @@ export default function NotificationPrompt() {
 
   useEffect(() => {
     if (!user || pathname?.startsWith('/auth')) return;
+    if (isNativeApp()) {
+      if (snoozed()) return;
+      let t;
+      let alive = true;
+      nativePushPermission()
+        .then((p) => {
+          if (!alive) return;
+          if (p === 'prompt' || p === 'prompt-with-rationale') {
+            t = setTimeout(() => setOpen(true), 1500);
+          } else if (p === 'granted' && !nativePushRegistered()) {
+            enablePush(user.id).catch(() => {});
+          }
+        })
+        .catch(() => {});
+      return () => {
+        alive = false;
+        clearTimeout(t);
+      };
+    }
     if (!pushSupported() || Notification.permission !== 'default' || snoozed()) return;
     if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) return;
     const t = setTimeout(() => setOpen(true), 1500);

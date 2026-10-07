@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from './AuthProvider';
 import { getSupabase } from '@/lib/supabase';
-import { enablePush } from '@/lib/push';
+import { enablePush, nativePushPermission, nativePushRegistered } from '@/lib/push';
+import { isNativeApp } from '@/lib/native';
 import { fetchProfiles, displayName } from '@/lib/social';
 import s from './Social.module.css';
 
@@ -26,7 +27,11 @@ export default function MeetupInbox() {
     if (!supabase) return;
 
     // Push endpoints rotate; re-save silently whenever permission is already granted.
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    if (isNativeApp()) {
+      nativePushPermission()
+        .then((p) => p === 'granted' && !nativePushRegistered() && enablePush(user.id))
+        .catch(() => {});
+    } else if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       enablePush(user.id).catch(() => {});
     }
 

@@ -168,6 +168,10 @@ function isDuplicate(key) {
 
 const fail = (error, status) => Response.json({ error }, { status });
 
+// Spam filters distrust emoji subjects and brand-only senders; plain words and
+// a person's name ("krishna (via Halfway)") read like a real message.
+const plain = (n) => String(n).replace(/^@/, '');
+
 const fmtKm = (km) => (km == null ? null : km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`);
 
 // Subject, detail rows and map pin for a meetup email.
@@ -189,19 +193,19 @@ async function meetupEmail(admin, type, m, n, caller, recipient) {
 
   switch (type) {
     case 'meet_request':
-      return { subject: `👋 ${n} wants to meet up`, details: [['From', n]], button: 'Share my location' };
+      return { subject: `${plain(n)} wants to meet up on Halfway`, details: [['From', n]], button: 'Share my location' };
     case 'meet_accepted':
-      return { subject: `🎉 ${n} is in — pick a place`, details: [['You are', apart && `${apart} apart`]], button: 'Pick a place' };
+      return { subject: `${plain(n)} is in. Pick a place to meet`, details: [['You are', apart && `${apart} apart`]], button: 'Pick a place' };
     case 'place_proposed':
       return {
-        subject: `📍 ${n} suggested ${place.name} — accept?`,
+        subject: `${plain(n)} suggested ${place.name} for your meetup`,
         details: [['Place', place.name], ['From you', away(mine)], [`From ${n}`, away(theirs)]],
         map: place,
         button: 'Accept or suggest another',
       };
     case 'place_agreed':
       return {
-        subject: `✅ Meeting ${n} at ${place.name}`,
+        subject: `You're meeting ${plain(n)} at ${place.name}`,
         details: [
           ['Place', place.name],
           ['From you', away(mine)],
@@ -285,8 +289,8 @@ export async function POST(request) {
     email = !!rule.email;
     emailExtra =
       type === 'friend_request'
-        ? { subject: `🤝 ${n} wants to be friends on Halfway`, button: 'Accept request' }
-        : { subject: `🤝 ${n} accepted your friend request`, button: 'Meet up' };
+        ? { subject: `${plain(n)} wants to be friends on Halfway`, button: 'Accept request' }
+        : { subject: `${plain(n)} accepted your friend request on Halfway`, button: 'Meet up' };
   } else if (MEETUP_TYPES[type]) {
     const rule = MEETUP_TYPES[type];
     const { data: m } = await admin.from('meetups').select('*').eq('id', id).maybeSingle();
@@ -418,6 +422,7 @@ export async function POST(request) {
         text,
         url,
         ...emailExtra,
+        fromName: emailExtra.subject && type !== 'test' ? `${plain(await senderName())} (via Halfway)` : undefined,
         origin: new URL(request.url).origin,
       });
       sent++;

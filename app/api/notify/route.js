@@ -168,6 +168,53 @@ function isDuplicate(key) {
 
 const fail = (error, status) => Response.json({ error }, { status });
 
+const fmtKm = (km) => (km == null ? null : km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`);
+
+// Subject, detail rows and map pin for a meetup email.
+async function meetupEmail(admin, type, m, n, caller, recipient) {
+  const place =
+    type === 'place_proposed'
+      ? { name: m.proposal_name, lat: m.proposal_lat, lng: m.proposal_lng }
+      : m.dest_lat != null
+        ? { name: m.dest_name, lat: m.dest_lat, lng: m.dest_lng }
+        : null;
+  const { data: locs } = await admin
+    .from('live_locations')
+    .select('user_id, lat, lng, eta_min')
+    .eq('meetup_id', m.id);
+  const mine = locs?.find((l) => l.user_id === recipient);
+  const theirs = locs?.find((l) => l.user_id === caller);
+  const away = (l) => (l && place?.lat != null ? fmtKm(haversine([l.lat, l.lng], [place.lat, place.lng])) : null);
+  const apart = mine && theirs ? fmtKm(haversine([mine.lat, mine.lng], [theirs.lat, theirs.lng])) : null;
+
+  switch (type) {
+    case 'meet_request':
+      return { subject: `👋 ${n} wants to meet up`, details: [['From', n]], button: 'Share my location' };
+    case 'meet_accepted':
+      return { subject: `🎉 ${n} is in — pick a place`, details: [['You are', apart && `${apart} apart`]], button: 'Pick a place' };
+    case 'place_proposed':
+      return {
+        subject: `📍 ${n} suggested ${place.name} — accept?`,
+        details: [['Place', place.name], ['From you', away(mine)], [`From ${n}`, away(theirs)]],
+        map: place,
+        button: 'Accept or suggest another',
+      };
+    case 'place_agreed':
+      return {
+        subject: `✅ Meeting ${n} at ${place.name}`,
+        details: [
+          ['Place', place.name],
+          ['From you', away(mine)],
+          [`${n} arrives in`, theirs?.eta_min != null ? `~${Math.round(theirs.eta_min)} min` : null],
+        ],
+        map: place,
+        button: 'Start navigation',
+      };
+    default:
+      return {};
+  }
+}
+
 export async function POST(request) {
   const admin = getAdmin();
   const webPush = webPushReady();
@@ -201,6 +248,8 @@ export async function POST(request) {
   let sticky = false;
   let ttl = 3600;
   let email = false;
+  // Email can say more than a notification: a subject, the place, distances.
+  let emailExtra = {};
 
   const senderName = async () => {
     const { data } = await admin
@@ -220,6 +269,7 @@ export async function POST(request) {
     tag = 'test';
     urgency = 'high';
     email = true;
+    emailExtra = { subject: 'Halfway test email', details: [['Email alerts', 'Working']] };
   } else if (FRIEND_TYPES[type]) {
     const rule = FRIEND_TYPES[type];
     const { data: f } = await admin.from('friendships').select('*').eq('id', id).maybeSingle();
@@ -233,6 +283,10 @@ export async function POST(request) {
     url = '/friends';
     tag = `friend-${id}`;
     email = !!rule.email;
+    emailExtra =
+      type === 'friend_request'
+        ? { subject: `🤝 ${n} wants to be friends on Halfway`, button: 'Accept request' }
+        : { subject: `🤝 ${n} accepted your friend request`, button: 'Meet up' };
   } else if (MEETUP_TYPES[type]) {
     const rule = MEETUP_TYPES[type];
     const { data: m } = await admin.from('meetups').select('*').eq('id', id).maybeSingle();
@@ -263,6 +317,7 @@ export async function POST(request) {
     sticky = !!rule.sticky;
     email = !!rule.email;
     if (rule.ttl) ttl = rule.ttl;
+    if (email) emailExtra = await meetupEmail(admin, type, m, n, caller, recipient);
   } else {
     return fail('Unknown notification type.', 400);
   }
@@ -362,6 +417,7 @@ export async function POST(request) {
         title,
         text,
         url,
+        ...emailExtra,
         origin: new URL(request.url).origin,
       });
       sent++;

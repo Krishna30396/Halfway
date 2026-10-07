@@ -20,13 +20,17 @@ export default function AuthProvider({ children }) {
       return;
     }
 
+    // Token refreshes hand back a new user object for the same person; keeping
+    // the old one stops every page from reloading all its data each time.
+    const keep = (next) => setUser((prev) => (prev && next && prev.id === next.id ? prev : next));
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+      keep(session?.user ?? null);
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      keep(session?.user ?? null);
     });
 
     return () => subscription.unsubscribe();

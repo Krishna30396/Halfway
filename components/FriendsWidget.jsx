@@ -24,8 +24,15 @@ function PeopleIcon() {
   );
 }
 
+// The hidden check runs before any data loading: on /friends the page loads
+// its own copy, and loading here too doubled every query and realtime channel.
 export default function FriendsWidget() {
   const pathname = usePathname();
+  if (HIDDEN_ON.some((re) => re.test(pathname || ''))) return null;
+  return <FriendsWidgetPanel pathname={pathname} />;
+}
+
+function FriendsWidgetPanel({ pathname }) {
   const router = useRouter();
   const f = useFriends();
   const [open, setOpen] = useState(false);
@@ -44,7 +51,7 @@ export default function FriendsWidget() {
 
   useEffect(() => setOpen(false), [pathname]);
 
-  if (!f.configured || HIDDEN_ON.some((re) => re.test(pathname || ''))) return null;
+  if (!f.configured) return null;
 
   const act = (key, fn) => async () => {
     setBusy(key);

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import NotificationToggle from '@/components/NotificationToggle';
+import EmailAlerts from '@/components/EmailAlerts';
 import UsernameSetup from '@/components/UsernameSetup';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getSupabase } from '@/lib/supabase';
@@ -224,6 +225,7 @@ export default function FriendsPage() {
       </section>
 
       <NotificationToggle showTest />
+      <EmailAlerts />
 
       {/* ---- Live / pending meetups ---- */}
       {meetups.length > 0 && (

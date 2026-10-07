@@ -307,6 +307,22 @@ create policy "Users manage own tokens" on device_tokens
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- ============================================================================
+-- EMAIL ALERTS — optional address for friend/meetup emails; only the owner can
+-- see it, the server reads it with the service key. Never shown to friends.
+-- ============================================================================
+create table if not exists email_alerts (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  email text not null check (length(email) <= 254 and email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
+  enabled boolean not null default true,
+  updated_at timestamptz default now()
+);
+alter table email_alerts enable row level security;
+
+drop policy if exists "Users manage own email alerts" on email_alerts;
+create policy "Users manage own email alerts" on email_alerts
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ============================================================================
 -- REALTIME — stream these tables to the app
 -- ============================================================================
 do $$

@@ -3,6 +3,7 @@ import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 import { createClient } from '@supabase/supabase-js';
 import { haversine } from '@/lib/geo';
+import { emailReady, sendAlertEmail } from '@/lib/email';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,8 +15,10 @@ const ARRIVE_KM = 0.3;
 
 // sender: which meetup column must equal the caller ('any' = either participant).
 // sticky: stays on screen until tapped — used for things that need an answer.
+// email: also emailed (if the person added an address) — only the ones worth an inbox.
 const MEETUP_TYPES = {
   meet_request: {
+    email: true,
     status: ['requested'],
     sender: 'created_by',
     urgency: 'high',
@@ -45,6 +48,7 @@ const MEETUP_TYPES = {
     body: () => 'Your meetup request was declined.',
   },
   place_proposed: {
+    email: true,
     status: ['planning'],
     sender: 'proposed_by',
     urgency: 'high',
@@ -60,6 +64,7 @@ const MEETUP_TYPES = {
     body: () => 'Suggest somewhere else.',
   },
   place_agreed: {
+    email: true,
     status: ['live'],
     sender: 'any',
     urgency: 'high',
@@ -85,6 +90,7 @@ const MEETUP_TYPES = {
 
 const FRIEND_TYPES = {
   friend_request: {
+    email: true,
     status: 'pending',
     sender: 'requester',
     recipient: 'addressee',
@@ -92,6 +98,7 @@ const FRIEND_TYPES = {
     body: () => 'Accept to plan meetups together.',
   },
   friend_accepted: {
+    email: true,
     status: 'accepted',
     sender: 'addressee',
     recipient: 'requester',
@@ -165,7 +172,8 @@ export async function POST(request) {
   const admin = getAdmin();
   const webPush = webPushReady();
   const fcm = getFcm();
-  if (!admin || (!webPush && !fcm)) {
+  const mail = emailReady();
+  if (!admin || (!webPush && !fcm && !mail)) {
     return fail('Notifications are not configured on the server.', 503);
   }
 
@@ -192,6 +200,7 @@ export async function POST(request) {
   let urgency = 'normal';
   let sticky = false;
   let ttl = 3600;
+  let email = false;
 
   const senderName = async () => {
     const { data } = await admin
@@ -210,6 +219,7 @@ export async function POST(request) {
     url = '/friends';
     tag = 'test';
     urgency = 'high';
+    email = true;
   } else if (FRIEND_TYPES[type]) {
     const rule = FRIEND_TYPES[type];
     const { data: f } = await admin.from('friendships').select('*').eq('id', id).maybeSingle();
@@ -222,6 +232,7 @@ export async function POST(request) {
     text = rule.body(n);
     url = '/friends';
     tag = `friend-${id}`;
+    email = !!rule.email;
   } else if (MEETUP_TYPES[type]) {
     const rule = MEETUP_TYPES[type];
     const { data: m } = await admin.from('meetups').select('*').eq('id', id).maybeSingle();
@@ -250,6 +261,7 @@ export async function POST(request) {
     tag = `meet-${id}`;
     urgency = rule.urgency;
     sticky = !!rule.sticky;
+    email = !!rule.email;
     if (rule.ttl) ttl = rule.ttl;
   } else {
     return fail('Unknown notification type.', 400);
@@ -326,7 +338,30 @@ export async function POST(request) {
     }
   };
 
-  await Promise.all([sendWebPush(), sendFcm()]);
+  const sendEmail = async () => {
+    if (!mail || !email) return;
+    const { data: row } = await admin
+      .from('email_alerts')
+      .select('email, enabled')
+      .eq('user_id', recipient)
+      .maybeSingle();
+    if (!row?.enabled) return;
+    try {
+      await sendAlertEmail({
+        to: row.email,
+        userId: recipient,
+        title,
+        text,
+        url,
+        origin: new URL(request.url).origin,
+      });
+      sent++;
+    } catch (err) {
+      console.error('Email send failed:', err.message);
+    }
+  };
+
+  await Promise.all([sendWebPush(), sendFcm(), sendEmail()]);
 
   return Response.json({ ok: true, sent });
 }

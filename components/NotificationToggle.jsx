@@ -47,7 +47,7 @@ function TestAlert({ alertCheck }) {
       setPhase('idle');
       setMsg(
         sent
-          ? `Sent to ${sent} device${sent > 1 ? 's' : ''}. Did it pop up on your lock screen? If not, check the tips below.`
+          ? `Sent (${sent}). Did it pop up on your lock screen? If you added an email, check your inbox too. No pop-up? See the tips below.`
           : 'No device got it — turn notifications off and on again on this phone.'
       );
     } catch (err) {

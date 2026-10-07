@@ -726,3 +726,11 @@
 .testAlert .actions {
   margin-top: 0;
 }
+
+.emailForm {
+  margin-top: 12px;
+}
+
+.emailForm .actions {
+  margin-top: 10px;
+}

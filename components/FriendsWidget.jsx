@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useFriends } from '@/lib/useFriends';
 import { displayName, initialOf } from '@/lib/social';
 import NotificationToggle from './NotificationToggle';
+import EmailAlerts from './EmailAlerts';
 import UsernameSetup from './UsernameSetup';
 import s from './FriendsWidget.module.css';
 
@@ -253,6 +254,7 @@ export default function FriendsWidget() {
                 </section>
 
                 <NotificationToggle showTest />
+                <EmailAlerts />
               </>
             )}
           </div>

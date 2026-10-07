@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import NotificationToggle from '@/components/NotificationToggle';
+import UsernameSetup from '@/components/UsernameSetup';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getSupabase } from '@/lib/supabase';
 import { useFriends } from '@/lib/useFriends';
@@ -73,15 +74,8 @@ export default function FriendsPage() {
     return (
       <Shell>
         <div className={s.card}>
-          <h2 className={s.meetTitle}>Meet friends halfway, live</h2>
-          <p className={s.muted} style={{ marginTop: 8 }}>
-            Sign in to add friends, send meetup requests, agree on a place, and see each other
-            moving towards it in real time.
-          </p>
-          <div className={s.actions}>
-            <Link href="/auth/login" className={s.primary}>Sign in</Link>
-            <Link href="/auth/signup" className={s.secondary}>Create account</Link>
-          </div>
+          <h2 className={s.meetTitle} style={{ marginBottom: 12 }}>Meet friends halfway, live</h2>
+          <UsernameSetup onDone={f.reload} />
         </div>
       </Shell>
     );

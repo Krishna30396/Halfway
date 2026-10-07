@@ -530,8 +530,8 @@ export default function MeetPage() {
   }
   if (!user) {
     return (
-      <Centered title="Sign in to see this meetup" text="Meetups are private to the two people in them.">
-        <Link href="/auth/login" className={s.primary}>Sign in</Link>
+      <Centered title="Open Halfway on the phone you set up" text="Meetups are private to the two people in them. If this is a new phone, pick a username first and ask your friend to send a new meetup.">
+        <Link href="/friends" className={s.primary}>Go to Friends</Link>
       </Centered>
     );
   }

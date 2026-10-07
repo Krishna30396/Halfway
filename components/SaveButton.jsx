@@ -12,7 +12,7 @@ export default function SaveButton({ a, b, hub }) {
 
   const handleSave = useCallback(async () => {
     if (!user) {
-      window.location.href = '/auth/login';
+      window.location.href = '/friends';
       return;
     }
     setSaving(true);

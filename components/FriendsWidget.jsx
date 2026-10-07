@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useFriends } from '@/lib/useFriends';
 import { displayName, initialOf } from '@/lib/social';
 import NotificationToggle from './NotificationToggle';
+import UsernameSetup from './UsernameSetup';
 import s from './FriendsWidget.module.css';
 
 // Full-screen flows where a floating button would get in the way.
@@ -102,22 +103,14 @@ export default function FriendsWidget() {
             {!signedIn ? (
               <div className={s.empty}>
                 <p className={s.lead}>Meet friends halfway, live</p>
-                <p className={s.muted}>
-                  Sign in to invite friends, send meetup requests, agree on a place and see each
-                  other moving towards it.
-                </p>
-                <div className={s.row}>
-                  <Link href="/auth/login" className={s.primary}>Sign in</Link>
-                  <Link href="/auth/signup" className={s.secondary}>Create account</Link>
-                </div>
+                <UsernameSetup onDone={f.reload} />
               </div>
             ) : !f.loaded ? (
               <p className={s.muted}>Loading…</p>
             ) : !hasUsername ? (
               <div className={s.empty}>
-                <p className={s.lead}>Pick a username first</p>
-                <p className={s.muted}>Friends find you by your username.</p>
-                <Link href="/friends" className={s.primary}>Set username</Link>
+                <p className={s.lead}>Pick a username</p>
+                <UsernameSetup onDone={f.reload} />
               </div>
             ) : (
               <>

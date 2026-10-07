@@ -106,6 +106,7 @@
 
 .input {
   flex: 1;
+  width: 100%;
   min-width: 0;
   padding: 12px 14px;
   min-height: 44px;

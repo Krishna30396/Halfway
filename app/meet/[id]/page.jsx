@@ -13,6 +13,7 @@ import { isNativeApp, getBackgroundGeolocation, nativeUpsert } from '@/lib/nativ
 import { notify } from '@/lib/notify';
 import { fetchProfiles, displayName, initialOf } from '@/lib/social';
 import { haversine, pointAtFraction } from '@/lib/geo';
+import { useLiveRoute, maneuverArrow } from '@/lib/navigation';
 import { CATEGORIES, CATEGORY_COLORS } from '@/lib/categories';
 import s from '@/components/Social.module.css';
 
@@ -61,12 +62,12 @@ export default function MeetPage() {
   const [cats, setCats] = useState(['cafe', 'restaurant']);
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
   const [droppedPin, setDroppedPin] = useState(null);
-  const [myRoute, setMyRoute] = useState(null);
   const [recenter, setRecenter] = useState(0);
+  const [navMode, setNavMode] = useState(false);
+  const [pov, setPov] = useState('me');
 
   const myPosRef = useRef(null);
   const lastSent = useRef(null);
-  const routeInFlight = useRef(false);
   const arrivedSent = useRef(false);
 
   // ---- Derived state --------------------------------------------------------
@@ -213,10 +214,13 @@ export default function MeetPage() {
   }, [sharing, friendName, geoAttempt]);
 
   const myDistKm = dest && myPos ? haversine([myPos.lat, myPos.lng], [dest.lat, dest.lng]) : null;
-  const myEtaMin = useMemo(() => {
-    if (!myRoute || myDistKm == null || !myRoute.straightKm) return null;
-    return Math.max(0, myRoute.durationMin * Math.min(1.5, myDistKm / myRoute.straightKm));
-  }, [myRoute, myDistKm]);
+  // Road routes to the meeting place for both people, re-routed when either strays.
+  const myNav = useLiveRoute(status === 'live' ? myPos : null, dest);
+  const friendNav = useLiveRoute(status === 'live' ? friendLoc : null, dest, {
+    offRouteM: 150,
+    minGapMs: 30000,
+  });
+  const myEtaMin = myNav.progress?.etaMin ?? null;
 
   const sendLocation = useCallback(
     async (force) => {
@@ -338,30 +342,9 @@ export default function MeetPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, center?.[0], center?.[1], catsKey]);
 
-  // ---- Live: my road route + ETA to the destination -----------------------------
   useEffect(() => {
-    if (!dest || !myPos || routeInFlight.current) return;
-    const here = [myPos.lat, myPos.lng];
-    const straightKm = haversine(here, [dest.lat, dest.lng]);
-    if (straightKm < 0.05) return;
-    if (myRoute && myRoute.dest === `${dest.lat},${dest.lng}` && haversine(myRoute.from, here) < 1) return;
-
-    routeInFlight.current = true;
-    fetch(`/api/route?from=${here.map((v) => v.toFixed(5)).join(',')}&to=${dest.lat},${dest.lng}`)
-      .then((r) => r.json())
-      .then((d) => {
-        const r = d.routes?.[0];
-        setMyRoute(
-          r
-            ? { coords: r.coords, durationMin: r.durationMin, from: here, straightKm, dest: `${dest.lat},${dest.lng}` }
-            : { coords: null, durationMin: null, from: here, straightKm, dest: `${dest.lat},${dest.lng}` }
-        );
-      })
-      .catch(() => {})
-      .finally(() => {
-        routeInFlight.current = false;
-      });
-  }, [dest?.lat, dest?.lng, myPos, myRoute]);
+    if (status !== 'live') setNavMode(false);
+  }, [status]);
 
   // ---- Arrival: tell the friend once ------------------------------------------
   useEffect(() => {
@@ -595,10 +578,17 @@ export default function MeetPage() {
     dest && friendLoc ? haversine([friendLoc.lat, friendLoc.lng], [dest.lat, dest.lng]) : null;
   const friendArrived = friendDistKm != null && friendDistKm <= ARRIVE_KM;
   const iArrived = myDistKm != null && myDistKm <= ARRIVE_KM;
-  const fitKey = [!!myPos, !!friendLoc, dest?.lat, proposal?.lat, halfway?.point?.[0], recenter].join('|');
+  const fitKey = [!!myPos, !!friendLoc, dest?.lat, proposal?.lat, halfway?.point?.[0], recenter, navMode].join('|');
+
+  const navigating = navMode && status === 'live' && !!dest;
+  const viewing = pov === 'friend' && friendLoc ? 'friend' : 'me';
+  const viewNav = viewing === 'friend' ? friendNav : myNav;
+  const viewPos = viewing === 'friend' ? friendLoc : myPos;
+  const viewArrived = viewing === 'friend' ? friendArrived : iArrived;
+  const step = viewNav.progress?.next;
 
   return (
-    <div className={s.meet}>
+    <div className={`${s.meet} ${navigating ? s.meetNav : ''}`}>
       <aside className={s.meetPanel}>
         <div className={s.topBar}>
           <Link href="/friends" className={s.back}>← Friends</Link>
@@ -781,14 +771,43 @@ export default function MeetPage() {
               <h2 className={s.cardTitle}>Meeting at</h2>
               <p className={s.proposalName}>{dest.name}</p>
               <div className={s.actions}>
-                <a
-                  className={s.primary}
-                  href={`https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                {navigating ? (
+                  <button type="button" className={s.secondary} onClick={() => setNavMode(false)}>
+                    Exit navigation
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={s.primary}
+                    onClick={() => {
+                      setPov('me');
+                      setNavMode(true);
+                    }}
+                  >
+                    Navigate
+                  </button>
+                )}
+              </div>
+              <div className={s.povSwitch} role="tablist" aria-label="Whose route to follow">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewing === 'me'}
+                  className={viewing === 'me' ? s.povOn : s.pov}
+                  onClick={() => setPov('me')}
                 >
-                  Navigate
-                </a>
+                  My route
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewing === 'friend'}
+                  className={viewing === 'friend' ? s.povOn : s.pov}
+                  onClick={() => setPov('friend')}
+                  disabled={!friendLoc}
+                >
+                  {friendName}&apos;s route
+                </button>
               </div>
             </section>
 
@@ -801,7 +820,9 @@ export default function MeetPage() {
                     {iArrived ? <span className={s.arrived}>Arrived</span> : myEtaMin != null ? `~${fmtMin(myEtaMin)} by road` : 'Locating…'}
                   </div>
                 </div>
-                {myDistKm != null && <div className={s.statValue}>{fmtKm(myDistKm)}</div>}
+                {myDistKm != null && (
+                  <div className={s.statValue}>{fmtKm(myNav.progress?.remainingKm ?? myDistKm)}</div>
+                )}
               </div>
               <div className={s.stat}>
                 <div className={`${s.avatar} ${s.avatarAlt}`}>{initialOf(friend)}</div>
@@ -812,7 +833,8 @@ export default function MeetPage() {
                       <span className={s.arrived}>Arrived</span>
                     ) : friendLoc ? (
                       <>
-                        {friendLoc.eta_min != null && `~${fmtMin(friendLoc.eta_min)} · `}
+                        {(friendNav.progress?.etaMin ?? friendLoc.eta_min) != null &&
+                          `~${fmtMin(friendNav.progress?.etaMin ?? friendLoc.eta_min)} · `}
                         updated {fmtAgo(friendLoc.updated_at, now)}
                       </>
                     ) : (
@@ -820,7 +842,9 @@ export default function MeetPage() {
                     )}
                   </div>
                 </div>
-                {friendDistKm != null && <div className={s.statValue}>{fmtKm(friendDistKm)}</div>}
+                {friendDistKm != null && (
+                  <div className={s.statValue}>{fmtKm(friendNav.progress?.remainingKm ?? friendDistKm)}</div>
+                )}
               </div>
             </section>
 
@@ -852,15 +876,58 @@ export default function MeetPage() {
           onPlaceSelect={setSelectedPlaceId}
           proposal={proposal}
           dest={dest}
-          route={status === 'live' ? myRoute?.coords : null}
+          route={status === 'live' ? viewNav.nav?.coords : null}
+          routeColor={viewing === 'friend' ? '#6E4F8C' : '#2F6F5E'}
+          altRoute={status === 'live' ? (viewing === 'friend' ? myNav : friendNav).nav?.coords : null}
+          altRouteColor={viewing === 'friend' ? '#2F6F5E' : '#6E4F8C'}
+          follow={navigating ? viewPos : null}
           droppedPin={droppedPin}
           onMapClick={status === 'planning' && !proposal ? setDroppedPin : null}
           fitKey={fitKey}
           panTarget={selectedPlace}
         />
-        <button type="button" className={s.recenter} onClick={() => setRecenter((n) => n + 1)}>
-          Show everyone
-        </button>
+
+        {navigating && (
+          <div className={s.navBanner} role="status" aria-live="polite">
+            <div className={s.navArrow} aria-hidden="true">
+              {viewArrived ? '⚑' : maneuverArrow(step)}
+            </div>
+            <div className={s.navText}>
+              {viewArrived ? (
+                <strong>{viewing === 'friend' ? `${friendName} has arrived` : 'You have arrived'}</strong>
+              ) : step ? (
+                <>
+                  <span className={s.navDist}>{fmtKm(viewNav.progress.nextKm)}</span>
+                  <strong>{step.instruction}</strong>
+                </>
+              ) : (
+                <strong>{viewPos ? 'Finding the route…' : 'Waiting for location…'}</strong>
+              )}
+              {viewNav.progress && !viewArrived && (
+                <span className={s.navMeta}>
+                  {viewing === 'friend' ? `${friendName} · ` : ''}
+                  {fmtKm(viewNav.progress.remainingKm)} left
+                  {viewNav.progress.etaMin != null && ` · ~${fmtMin(viewNav.progress.etaMin)}`}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {navigating ? (
+          <button
+            type="button"
+            className={s.recenter}
+            onClick={() => setPov(viewing === 'me' && friendLoc ? 'friend' : 'me')}
+            disabled={!friendLoc}
+          >
+            {viewing === 'me' ? `Follow ${friendName}` : 'Follow me'}
+          </button>
+        ) : (
+          <button type="button" className={s.recenter} onClick={() => setRecenter((n) => n + 1)}>
+            Show everyone
+          </button>
+        )}
       </div>
     </div>
   );

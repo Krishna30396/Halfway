@@ -407,6 +407,100 @@
   min-width: 0;
 }
 
+/* ---- In-app navigation ------------------------------------------------------ */
+.navBanner {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 550;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #1E2A24;
+  color: #fff;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* The banner sits where Leaflet's zoom buttons are; pinch-zoom still works. */
+.meetNav :global(.leaflet-control-zoom) {
+  display: none;
+}
+
+.navArrow {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 34px;
+  line-height: 52px;
+  text-align: center;
+}
+
+.navText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navText strong {
+  font-size: 16.5px;
+  line-height: 1.3;
+}
+
+.navDist {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.navMeta {
+  font-size: 12.5px;
+  opacity: 0.75;
+}
+
+.povSwitch {
+  display: flex;
+  margin-top: 12px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--paper);
+  border: 1px solid var(--contour);
+}
+
+.pov,
+.povOn {
+  flex: 1;
+  min-height: 38px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.povOn {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.pov:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .mapLoading {
   width: 100%;
   height: 100%;
@@ -592,6 +686,11 @@
 
   .centerCard {
     margin-top: 6vh;
+  }
+
+  /* Navigating: give the map most of the screen. */
+  .meetNav .meetPanel {
+    max-height: 34dvh;
   }
 }
 

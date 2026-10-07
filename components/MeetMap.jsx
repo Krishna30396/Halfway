@@ -66,6 +66,16 @@ function Fit({ points, fitKey }) {
   return null;
 }
 
+// Navigation mode: keep the followed person centred, zoomed in to street level.
+function Follow({ target }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!target) return;
+    map.setView([target.lat, target.lng], Math.max(map.getZoom(), 17), { animate: true });
+  }, [map, target?.lat, target?.lng]);
+  return null;
+}
+
 function PanTo({ target }) {
   const map = useMap();
   useEffect(() => {
@@ -96,6 +106,10 @@ export default function MeetMap({
   proposal,
   dest,
   route,
+  routeColor = '#2F6F5E',
+  altRoute,
+  altRouteColor = '#6E4F8C',
+  follow,
   droppedPin,
   onMapClick,
   fitKey,
@@ -117,12 +131,18 @@ export default function MeetMap({
       style={{ width: '100%', height: '100%', background: 'var(--map-bg)' }}
     >
       <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
-      <Fit points={points} fitKey={fitKey} />
+      {follow ? <Follow target={follow} /> : <Fit points={points} fitKey={fitKey} />}
       <PanTo target={panTarget} />
       {onMapClick && <Clicks onClick={onMapClick} />}
 
+      {altRoute && (
+        <Polyline
+          positions={altRoute}
+          pathOptions={{ color: altRouteColor, weight: 4, opacity: 0.45, dashArray: '6 8' }}
+        />
+      )}
       {route && (
-        <Polyline positions={route} pathOptions={{ color: '#2F6F5E', weight: 5, opacity: 0.9 }} />
+        <Polyline positions={route} pathOptions={{ color: routeColor, weight: follow ? 7 : 5, opacity: 0.92 }} />
       )}
 
       {places?.map((p) => (

@@ -274,6 +274,9 @@ export async function POST(request) {
   }
 
   let sent = 0;
+  // What happened on each channel — returned for the test alert so the
+  // person can see which of push / email works.
+  const report = { app: 0, browser: 0, email: 'not set up on the server' };
 
   const { data: devices } = fcm
     ? await admin.from('device_tokens').select('token').eq('user_id', recipient)
@@ -299,6 +302,7 @@ export async function POST(request) {
             { TTL: ttl, urgency }
           );
           sent++;
+          report.browser++;
         } catch (err) {
           // The device unsubscribed or reinstalled — forget it.
           if (err.statusCode === 404 || err.statusCode === 410) {
@@ -332,6 +336,7 @@ export async function POST(request) {
         },
       });
       sent += res.successCount;
+      report.app += res.successCount;
       const dead = tokens.filter((_, i) => DEAD_FCM_CODES.has(res.responses[i]?.error?.code));
       if (dead.length) await admin.from('device_tokens').delete().in('token', dead);
     } catch (err) {
@@ -346,7 +351,10 @@ export async function POST(request) {
       .select('email, enabled')
       .eq('user_id', recipient)
       .maybeSingle();
-    if (!row?.enabled) return;
+    if (!row?.enabled) {
+      report.email = row ? 'turned off' : 'no email address added';
+      return;
+    }
     try {
       await sendAlertEmail({
         to: row.email,
@@ -357,12 +365,16 @@ export async function POST(request) {
         origin: new URL(request.url).origin,
       });
       sent++;
+      report.email = 'sent';
     } catch (err) {
       console.error('Email send failed:', err.message);
+      report.email = /535|Username and Password not accepted|BadCredentials/i.test(err.message)
+        ? 'Gmail rejected the app password (SMTP_PASS)'
+        : `failed: ${err.message.slice(0, 120)}`;
     }
   };
 
   await Promise.all([sendWebPush(), sendFcm(), sendEmail()]);
 
-  return Response.json({ ok: true, sent });
+  return Response.json(type === 'test' ? { ok: true, sent, report } : { ok: true, sent });
 }

@@ -43,13 +43,14 @@ function TestAlert({ alertCheck }) {
     setPhase('waiting');
     setMsg('Lock your phone now — the alert arrives in about 5 seconds.');
     try {
-      const sent = await sendTestNotification(5);
+      const { report } = await sendTestNotification(5);
       setPhase('idle');
-      setMsg(
-        sent
-          ? `Sent (${sent}). Did it pop up on your lock screen? If you added an email, check your inbox too. No pop-up? See the tips below.`
-          : 'No device got it — turn notifications off and on again on this phone.'
-      );
+      const parts = [
+        report.app ? `app: sent to ${report.app} phone${report.app > 1 ? 's' : ''}` : 'app: no phone registered',
+        report.browser ? `browser: sent to ${report.browser}` : null,
+        `email: ${report.email}`,
+      ].filter(Boolean);
+      setMsg(`${parts.join(' · ')}. Did it pop up on your lock screen? No pop-up? See the tips below.`);
     } catch (err) {
       setPhase('idle');
       setMsg(err.message);

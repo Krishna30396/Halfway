@@ -54,7 +54,7 @@ const MEETUP_TYPES = {
     urgency: 'high',
     sticky: true,
     title: (n) => `${n} suggested a place`,
-    body: (m) => `${m.proposal_name} — accept to start live tracking.`,
+    body: (n, m) => `${m.proposal_name} — accept to start live tracking.`,
   },
   place_rejected: {
     status: ['planning'],

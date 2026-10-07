@@ -368,8 +368,12 @@ export async function POST(request) {
       report.email = 'sent';
     } catch (err) {
       console.error('Email send failed:', err.message);
+      // Enough to spot a typo or a mis-paste without revealing either value.
+      const user = process.env.SMTP_USER || '';
+      const shown = user.replace(/^(.{2}).*(.{2}@.*)$/, '$1•••$2');
+      const passLen = (process.env.SMTP_PASS || '').replace(/\s+/g, '').length;
       report.email = /535|Username and Password not accepted|BadCredentials/i.test(err.message)
-        ? 'Gmail rejected the app password (SMTP_PASS)'
+        ? `Gmail rejected the login for ${shown} (password is ${passLen} characters; an app password is 16)`
         : `failed: ${err.message.slice(0, 120)}`;
     }
   };

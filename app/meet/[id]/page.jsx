@@ -13,7 +13,8 @@ import { isNativeApp, getBackgroundGeolocation, nativeUpsert } from '@/lib/nativ
 import { notify } from '@/lib/notify';
 import { fetchProfiles, displayName, initialOf } from '@/lib/social';
 import { haversine, pointAtFraction } from '@/lib/geo';
-import { useLiveRoute, maneuverArrow } from '@/lib/navigation';
+import { useLiveRoute, fmtKm, fmtMin } from '@/lib/navigation';
+import NavBanner from '@/components/NavBanner';
 import { CATEGORIES, CATEGORY_COLORS } from '@/lib/categories';
 import s from '@/components/Social.module.css';
 
@@ -21,14 +22,16 @@ const MeetMap = dynamic(() => import('@/components/MeetMap'), {
   ssr: false,
   loading: () => <div className={s.mapLoading}>Loading map…</div>,
 });
+const NavigationMap = dynamic(() => import('@/components/NavigationMap'), {
+  ssr: false,
+  loading: () => <div className={s.mapLoading}>Starting navigation…</div>,
+});
 
 const ARRIVE_KM = 0.15;
 const MIN_SEND_MS = 8000;
 const HEARTBEAT_MS = 30000;
 const MIN_MOVE_KM = 0.02;
 
-const fmtKm = (km) => (km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`);
-const fmtMin = (m) => (m < 1 ? '<1 min' : m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)} h ${Math.round(m % 60)} min`);
 const categoryLabel = (id) => CATEGORIES.find((c) => c.id === id)?.label || '';
 
 function fmtAgo(iso, now) {
@@ -145,6 +148,22 @@ export default function MeetPage() {
   useEffect(() => setNative(isNativeApp()), []);
 
   // ---- My location: watch while sharing, push to the friend ------------------
+  // The background watcher only reports after 15 m of movement, so a standing
+  // user could get no fix at all; the regular watcher covers the foreground.
+  useEffect(() => {
+    if (!sharing || !isNativeApp() || !navigator.geolocation) return;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+        myPosRef.current = p;
+        setMyPos(p);
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [sharing, geoAttempt]);
+
   useEffect(() => {
     if (!sharing) return;
     // In the Android app a foreground service keeps GPS running with the screen off.
@@ -585,7 +604,6 @@ export default function MeetPage() {
   const viewNav = viewing === 'friend' ? friendNav : myNav;
   const viewPos = viewing === 'friend' ? friendLoc : myPos;
   const viewArrived = viewing === 'friend' ? friendArrived : iArrived;
-  const step = viewNav.progress?.next;
 
   return (
     <div className={`${s.meet} ${navigating ? s.meetNav : ''}`}>
@@ -864,54 +882,50 @@ export default function MeetPage() {
       </aside>
 
       <div className={s.meetMap}>
-        <MeetMap
-          me={myPos}
-          meLetter={initialOf(profiles[user.id])}
-          friend={friendLoc}
-          friendLetter={initialOf(friend)}
-          friendName={friendName}
-          midpoint={status === 'planning' ? halfway?.point : null}
-          places={status === 'planning' ? places : null}
-          selectedPlaceId={selectedPlaceId}
-          onPlaceSelect={setSelectedPlaceId}
-          proposal={proposal}
-          dest={dest}
-          route={status === 'live' ? viewNav.nav?.coords : null}
-          routeColor={viewing === 'friend' ? '#6E4F8C' : '#2F6F5E'}
-          altRoute={status === 'live' ? (viewing === 'friend' ? myNav : friendNav).nav?.coords : null}
-          altRouteColor={viewing === 'friend' ? '#2F6F5E' : '#6E4F8C'}
-          follow={navigating ? viewPos : null}
-          droppedPin={droppedPin}
-          onMapClick={status === 'planning' && !proposal ? setDroppedPin : null}
-          fitKey={fitKey}
-          panTarget={selectedPlace}
-        />
-
-        {navigating && (
-          <div className={s.navBanner} role="status" aria-live="polite">
-            <div className={s.navArrow} aria-hidden="true">
-              {viewArrived ? '⚑' : maneuverArrow(step)}
-            </div>
-            <div className={s.navText}>
-              {viewArrived ? (
-                <strong>{viewing === 'friend' ? `${friendName} has arrived` : 'You have arrived'}</strong>
-              ) : step ? (
-                <>
-                  <span className={s.navDist}>{fmtKm(viewNav.progress.nextKm)}</span>
-                  <strong>{step.instruction}</strong>
-                </>
-              ) : (
-                <strong>{viewPos ? 'Finding the route…' : 'Waiting for location…'}</strong>
-              )}
-              {viewNav.progress && !viewArrived && (
-                <span className={s.navMeta}>
-                  {viewing === 'friend' ? `${friendName} · ` : ''}
-                  {fmtKm(viewNav.progress.remainingKm)} left
-                  {viewNav.progress.etaMin != null && ` · ~${fmtMin(viewNav.progress.etaMin)}`}
-                </span>
-              )}
-            </div>
-          </div>
+        {navigating ? (
+          <>
+            <NavigationMap
+              focus={viewPos}
+              focusIs={viewing}
+              bearing={viewNav.progress?.bearing ?? 0}
+              route={viewNav.nav?.coords}
+              routeColor={viewing === 'friend' ? '#6E4F8C' : '#2F6F5E'}
+              altRoute={(viewing === 'friend' ? myNav : friendNav).nav?.coords}
+              altRouteColor={viewing === 'friend' ? '#2F6F5E' : '#6E4F8C'}
+              me={myPos}
+              meLetter={initialOf(profiles[user.id])}
+              friend={friendLoc}
+              friendLetter={initialOf(friend)}
+              dest={dest}
+            />
+            <NavBanner
+              who={viewing === 'friend' ? friendName : 'You'}
+              isMe={viewing === 'me'}
+              pos={viewPos}
+              live={viewNav}
+              arrived={viewArrived}
+            />
+          </>
+        ) : (
+          <MeetMap
+            me={myPos}
+            meLetter={initialOf(profiles[user.id])}
+            friend={friendLoc}
+            friendLetter={initialOf(friend)}
+            friendName={friendName}
+            midpoint={status === 'planning' ? halfway?.point : null}
+            places={status === 'planning' ? places : null}
+            selectedPlaceId={selectedPlaceId}
+            onPlaceSelect={setSelectedPlaceId}
+            proposal={proposal}
+            dest={dest}
+            route={status === 'live' ? myNav.nav?.coords : null}
+            altRoute={status === 'live' ? friendNav.nav?.coords : null}
+            droppedPin={droppedPin}
+            onMapClick={status === 'planning' && !proposal ? setDroppedPin : null}
+            fitKey={fitKey}
+            panTarget={selectedPlace}
+          />
         )}
 
         {navigating ? (

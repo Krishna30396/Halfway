@@ -20,3 +20,6 @@ mobile/android/app/build/
 mobile/android/build/
 mobile/android/.gradle/
 mobile/android/local.properties
+
+# Copied from node_modules at build time
+public/vendor/

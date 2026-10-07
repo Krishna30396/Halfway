@@ -99,7 +99,11 @@ export default function NotificationToggle({ showTest = false }) {
           if (nativePushRegistered()) return set('on');
           return enablePush(userId).then(() => set('on'));
         })
-        .catch(() => set('off'));
+        .catch((err) => {
+          set('off');
+          // Say why instead of silently showing "Turn on" again.
+          if (alive && err?.message) setError(err.message);
+        });
       return () => {
         alive = false;
       };

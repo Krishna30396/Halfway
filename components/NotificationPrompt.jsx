@@ -44,9 +44,19 @@ export default function NotificationPrompt() {
           }
         })
         .catch(() => {});
+      // Registration can fail while Google Play services is down; try again
+      // every time the app comes back to the screen until it works.
+      const retry = () => {
+        if (document.visibilityState !== 'visible' || nativePushRegistered()) return;
+        nativePushPermission()
+          .then((p) => p === 'granted' && enablePush(user.id))
+          .catch(() => {});
+      };
+      document.addEventListener('visibilitychange', retry);
       return () => {
         alive = false;
         clearTimeout(t);
+        document.removeEventListener('visibilitychange', retry);
       };
     }
     if (!pushSupported() || Notification.permission !== 'default' || snoozed()) return;

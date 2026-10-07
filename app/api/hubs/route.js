@@ -2,7 +2,17 @@ import { overpassQuery } from '@/lib/overpass';
 import { haversine } from '@/lib/geo';
 import { cached, TTL } from '@/lib/cache';
 
-const RANK = { city: 6, town: 5, suburb: 4, neighbourhood: 3.5, village: 3, hamlet: 1.5 };
+// Nearest wins. Distances are stretched by place type so a local area just
+// beats a big city at the same spot, and a city has to be genuinely close:
+// a city 12 km out scores like a neighbourhood 18 km out.
+const DISTANCE_WEIGHT = {
+  neighbourhood: 1,
+  suburb: 1,
+  village: 1.1,
+  town: 1.15,
+  hamlet: 1.3,
+  city: 1.5,
+};
 
 async function findHubs(lat, lng, maxKm) {
   const query = `[out:json][timeout:25];
@@ -23,13 +33,10 @@ out center 80;`;
         lat: el.lat,
         lng: el.lon,
         distanceKm,
-        // Distance penalty tuned 4 → 2.5: at 4 a hamlet on the line outscored
-        // a proper town 12 km out (Hartwell beat Milton Keynes), which is the
-        // opposite of what people want. §7 marks this weight as the tuning knob.
-        score: (RANK[el.tags.place] || 0) - (distanceKm / maxKm) * 2.5,
+        effectiveKm: distanceKm * (DISTANCE_WEIGHT[el.tags.place] || 1.2),
       };
     })
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => a.effectiveKm - b.effectiveKm);
 
   return candidates.slice(0, 6);
 }

@@ -32,6 +32,8 @@ const NavigationMap = dynamic(() => import('@/components/NavigationMap'), {
 
 const ARRIVE_KM = 0.15;
 const HEARTBEAT_MS = 30000;
+// Worse than this (metres) is a Wi-Fi / internet guess, not a GPS fix.
+const ROUGH_M = 200;
 const MIN_MOVE_KM = 0.01;
 
 const categoryLabel = (id) => CATEGORIES.find((c) => c.id === id)?.label || '';
@@ -72,6 +74,9 @@ export default function MeetPage() {
   const [pov, setPov] = useState('me');
 
   const myPosRef = useRef(null);
+  // True after "type where you are": GPS mustn't move the typed spot.
+  const manualRef = useRef(false);
+  const [manual, setManual] = useState(false);
   const lastSent = useRef(null);
   const arrivedSent = useRef(false);
 
@@ -151,20 +156,30 @@ export default function MeetPage() {
   useEffect(() => setNative(isNativeApp()), []);
 
   // ---- My location: watch while sharing, push to the friend ------------------
+  // Phones often report a rough Wi-Fi/network guess first (or in between GPS
+  // fixes). Never let one of those replace a good fix from the last minute.
+  const takeFix = useCallback((p) => {
+    if (manualRef.current) return;
+    const cur = myPosRef.current;
+    const worse = cur?.accuracy != null && p.accuracy != null && p.accuracy > Math.max(100, cur.accuracy * 2);
+    if (cur?.at && worse && Date.now() - cur.at < 60000) return;
+    const fix = { ...p, at: Date.now() };
+    myPosRef.current = fix;
+    setMyPos(fix);
+  }, []);
+
   // The background watcher only reports after 15 m of movement, so a standing
   // user could get no fix at all; the regular watcher covers the foreground.
   useEffect(() => {
     if (!sharing || !isNativeApp() || !navigator.geolocation) return;
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const p = {
+        takeFix({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
           speed: pos.coords.speed,
-        };
-        myPosRef.current = p;
-        setMyPos(p);
+        });
       },
       () => {},
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
@@ -201,14 +216,12 @@ export default function MeetPage() {
                 return;
               }
               if (!location) return;
-              const p = {
+              takeFix({
                 lat: location.latitude,
                 lng: location.longitude,
                 accuracy: location.accuracy,
                 speed: location.speed,
-              };
-              myPosRef.current = p;
-              setMyPos(p);
+              });
               setGeoError(null);
             }
           );
@@ -229,14 +242,12 @@ export default function MeetPage() {
     }
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const p = {
+        takeFix({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
           speed: pos.coords.speed,
-        };
-        myPosRef.current = p;
-        setMyPos(p);
+        });
         setGeoError(null);
       },
       (err) =>
@@ -250,6 +261,8 @@ export default function MeetPage() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [sharing, friendName, geoAttempt]);
 
+  const roughMe = !manual && myPos?.accuracy > ROUGH_M;
+  const roughFriend = friendLoc?.accuracy > ROUGH_M;
   const myDistKm = dest && myPos ? haversine([myPos.lat, myPos.lng], [dest.lat, dest.lng]) : null;
   // Road routes to the meeting place for both people, re-routed when either strays.
   const myNav = useLiveRoute(status === 'live' ? myPos : null, dest);
@@ -453,15 +466,16 @@ export default function MeetPage() {
   // A user tap lets the browser show the location prompt again.
   const retryLocation = () => {
     setGeoError(null);
+    manualRef.current = false;
+    setManual(false);
+    myPosRef.current = null;
     if (isNativeApp()) {
       setGeoAttempt((n) => n + 1);
       return;
     }
     navigator.geolocation?.getCurrentPosition(
       (pos) => {
-        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-        myPosRef.current = p;
-        setMyPos(p);
+        takeFix({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
         sendLocation(true);
       },
       (err) =>
@@ -481,7 +495,9 @@ export default function MeetPage() {
 
   const setManualLocation = (place) => {
     if (!place) return;
-    const p = { lat: place.lat, lng: place.lng, accuracy: null };
+    const p = { lat: place.lat, lng: place.lng, accuracy: null, at: Date.now() };
+    manualRef.current = true;
+    setManual(true);
     myPosRef.current = p;
     setMyPos(p);
     setGeoError(null);
@@ -637,9 +653,24 @@ export default function MeetPage() {
           {status === 'live' ? `Meeting ${friendName}` : `Plan with ${friendName}`}
         </h1>
 
-        {geoError && (
+        {!geoError && manual && sharing && (
+          <p className={s.muted}>
+            Using the place you typed.{' '}
+            <button type="button" className={s.linkBtn} onClick={retryLocation}>
+              Use my GPS again
+            </button>
+          </p>
+        )}
+        {(geoError || (roughMe && sharing)) && (
           <section className={s.card}>
-            <p className={s.banner}>{geoError}</p>
+            <p className={s.banner}>
+              {geoError ||
+                `Your location is only accurate to about ${fmtKm(myPos.accuracy / 1000)}, so ${friendName} may see you in the wrong spot. ${
+                  native
+                    ? 'Turn on Location → Use precise location for Halfway, and make sure GPS is on.'
+                    : 'Allow precise location, turn on GPS, or step near a window.'
+                } Or type where you are.`}
+            </p>
             <div className={s.actions}>
               <button type="button" className={s.secondary} onClick={retryLocation}>
                 Try again
@@ -871,6 +902,7 @@ export default function MeetPage() {
                       <>
                         {(friendNav.progress?.etaMin ?? friendLoc.eta_min) != null &&
                           `~${fmtMin(friendNav.progress?.etaMin ?? friendLoc.eta_min)} · `}
+                        {roughFriend && `approximate (±${fmtKm(friendLoc.accuracy / 1000)}) · `}
                         {fmtSpeed(friendLoc.speedKmh) && `${fmtSpeed(friendLoc.speedKmh)} · `}
                         updated {fmtAgo(friendLoc.updated_at, now)}
                       </>

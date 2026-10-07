@@ -734,3 +734,13 @@
 .emailForm .actions {
   margin-top: 10px;
 }
+
+.linkBtn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--route);
+  text-decoration: underline;
+  cursor: pointer;
+}

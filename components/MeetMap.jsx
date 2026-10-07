@@ -215,6 +215,13 @@ export default function MeetMap({
         </>
       )}
 
+      {friend?.accuracy > 50 && friend.accuracy < 5000 && (
+        <Circle
+          center={[friend.lat, friend.lng]}
+          radius={friend.accuracy}
+          pathOptions={{ color: '#6E4F8C', weight: 1, fillOpacity: 0.08, opacity: 0.4 }}
+        />
+      )}
       {friend && (
         <GlidingMarker
           lat={friend.lat}

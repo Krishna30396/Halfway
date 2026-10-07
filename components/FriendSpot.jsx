@@ -28,6 +28,7 @@ export default function FriendSpot({ name, me, friend, now }) {
         {friend && (
           <span className={s.navMeta}>
             {apart != null && `${fmtKm(apart)} from you`}
+            {friend.accuracy > 200 && ` · approximate (±${fmtKm(friend.accuracy / 1000)})`}
             {speed && ` · moving ${speed}`}
             {updated && ` · updated ${updated}`}
           </span>

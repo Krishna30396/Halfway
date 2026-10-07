@@ -25,6 +25,9 @@ export default function FriendsPage() {
   const { user, authLoading, loaded, me, meetups, people, incoming, outgoing, friends, otherOf, meetupWith } = f;
 
   const [editing, setEditing] = useState(false);
+  // Meet up stays "Opening…" until the meetup screen replaces this one — on a
+  // slow connection that can take seconds after the request itself is sent.
+  const [opening, setOpening] = useState(null);
   const [unameDraft, setUnameDraft] = useState('');
   const [nameDraft, setNameDraft] = useState('');
   const [profileMsg, setProfileMsg] = useState(null);
@@ -151,6 +154,7 @@ export default function FriendsPage() {
   const meetUp = (friendId) =>
     act(friendId, async () => {
       const id = await f.startMeetup(friendId);
+      setOpening(friendId);
       router.push(`/meet/${id}`);
     })();
 
@@ -327,9 +331,9 @@ export default function FriendsPage() {
                       type="button"
                       className={`${s.primary} ${s.small}`}
                       onClick={() => meetUp(id)}
-                      disabled={busy === id}
+                      disabled={busy === id || opening === id}
                     >
-                      {busy === id ? '…' : open ? 'Open meetup' : 'Meet up'}
+                      {busy === id || opening === id ? 'Opening…' : open ? 'Open meetup' : 'Meet up'}
                     </button>
                     <button
                       type="button"

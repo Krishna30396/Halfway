@@ -437,8 +437,15 @@ export default function MeetPage() {
   const update = async (patch, guard) => {
     let q = supabase.from('meetups').update(patch).eq('id', id);
     for (const [k, v] of Object.entries(guard)) q = v === null ? q.is(k, null) : q.eq(k, v);
-    const { data, error } = await q.select().maybeSingle();
-    if (error) throw error;
+    // A stalled mobile connection used to leave this hanging forever, with every
+    // button disabled. Give up after 15 s so the person can simply tap again.
+    const { data, error } = await q.select().abortSignal(AbortSignal.timeout(15000)).maybeSingle();
+    if (error) {
+      if (/abort|timeout/i.test(`${error.name} ${error.message}`)) {
+        throw new Error('Your connection is slow right now and that didn’t go through. Tap it again.');
+      }
+      throw error;
+    }
     if (!data) {
       await load();
       throw new Error(`${friendName} changed something at the same moment — here's the latest. Try again.`);

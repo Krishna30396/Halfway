@@ -275,8 +275,15 @@ export async function POST(request) {
 
   let sent = 0;
 
+  const { data: devices } = fcm
+    ? await admin.from('device_tokens').select('token').eq('user_id', recipient)
+    : { data: [] };
+  const tokens = (devices || []).map((d) => d.token);
+
   const sendWebPush = async () => {
-    if (!webPush) return;
+    // Someone with the Android app gets alerts there only — not a second copy
+    // from Chrome because they once turned notifications on in the browser.
+    if (!webPush || tokens.length) return;
     const { data: subs } = await admin
       .from('push_subscriptions')
       .select('id, endpoint, p256dh, auth')
@@ -303,13 +310,7 @@ export async function POST(request) {
   };
 
   const sendFcm = async () => {
-    if (!fcm) return;
-    const { data: devices } = await admin
-      .from('device_tokens')
-      .select('token')
-      .eq('user_id', recipient);
-    const tokens = (devices || []).map((d) => d.token);
-    if (!tokens.length) return;
+    if (!fcm || !tokens.length) return;
     try {
       const res = await fcm.sendEachForMulticast({
         tokens,

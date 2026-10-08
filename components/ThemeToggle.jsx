@@ -42,12 +42,33 @@ export default function ThemeToggle({ className }) {
     return () => observer.disconnect();
   }, []);
 
-  const toggle = () => {
+  const toggle = (e) => {
     const next = currentMode() === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-mode', next);
-    try {
-      localStorage.setItem(KEY, next);
-    } catch {}
+    const apply = () => {
+      document.documentElement.setAttribute('data-mode', next);
+      try {
+        localStorage.setItem(KEY, next);
+      } catch {}
+    };
+    // The new theme spreads out from this button as a growing circle.
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!document.startViewTransition || reduce) {
+      apply();
+      return;
+    }
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = r.left + r.width / 2;
+    const y = r.top + r.height / 2;
+    const radius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+    const transition = document.startViewTransition(apply);
+    transition.ready
+      .then(() =>
+        document.documentElement.animate(
+          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
+          { duration: 450, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', pseudoElement: '::view-transition-new(root)' }
+        )
+      )
+      .catch(() => {});
   };
 
   const isDark = mode === 'dark';

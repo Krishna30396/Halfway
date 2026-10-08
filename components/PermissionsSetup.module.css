@@ -2,7 +2,7 @@
   position: fixed;
   inset: 0;
   z-index: 5000;
-  background: color-mix(in srgb, var(--ink-solid) 40%, transparent);
+  background: var(--color-scrim);
   display: flex;
   align-items: flex-end;
   justify-content: center;

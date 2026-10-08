@@ -73,7 +73,7 @@
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: color-mix(in srgb, var(--ink-solid) 22%, transparent);
+  background: var(--color-scrim);
   animation: fade var(--t-med) var(--ease-out) backwards;
 }
 

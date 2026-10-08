@@ -1,113 +1,210 @@
 /* ==========================================================================
-   Ember + Ink — Halfway's colour system.
-   Ember (orange) is the one action colour: primary buttons, the halfway pin,
-   live states. Ink (near-black) is for text and secondary solid controls.
-   Peach is ember at low strength, for highlighted cards and selected chips.
-   Older token names (--route, --marker, --contour…) are kept as aliases so
-   every screen picks up the new palette.
+   Halfway design tokens — two layers.
+
+   1. PRIMITIVES (--orange-*, --neutral-*, --space-*, --text-*, --radius-*):
+      raw values. Never used by components directly; change a brand colour here.
+   2. SEMANTIC (--color-*, plus spacing/type/radius roles): what a value is FOR.
+      Components use these. Light and dark mode only re-map this layer.
+
+   Theme: orange and white. Orange is the one primary colour (buttons, selected
+   states, live, the halfway pin); surfaces are white; text is near-black.
+   Legacy names used across the app (--ember, --ink-solid, --route, --panel…)
+   are kept at the bottom as aliases of the semantic layer.
    ========================================================================== */
 :root {
-  /* Core */
-  --ember:        #F2541B;
-  --ember-strong: #D9440E;
-  --ember-soft:   #FFEDE5;
-  --ember-line:   #F9C4AE;
-  --on-ember:     #FFFFFF;
-  --ink-solid:    #17171A;
-  --on-ink:       #FFFFFF;
+  /* ---- Primitives: colour ---- */
+  --orange-25:  #FFF9F6;
+  --orange-50:  #FFF3EC;
+  --orange-100: #FFE4D6;
+  --orange-200: #FFC9AE;
+  --orange-300: #FFA47C;
+  --orange-400: #FF7A45;
+  --orange-500: #F2541B;
+  --orange-600: #D9440E;
+  --orange-700: #B3360A;
+  --orange-800: #8C2B0C;
+  --orange-900: #3B1A0E;
 
-  /* Surfaces & text */
-  --paper:        #F5F2EE;
-  --panel:        #FFFFFF;
-  --surface-2:    #F7F4F0;
-  --ink:          #17171A;
-  --muted:        #74706B;
-  --contour:      #ECE6E0;
-  --contour-strong: #DCD4CC;
+  --neutral-0:   #FFFFFF;
+  --neutral-25:  #FCFBFA;
+  --neutral-50:  #F7F5F2;
+  --neutral-100: #EFEBE7;
+  --neutral-200: #E2DCD6;
+  --neutral-300: #CBC3BB;
+  --neutral-400: #A39B94;
+  --neutral-500: #77706A;
+  --neutral-600: #57514C;
+  --neutral-700: #3A3632;
+  --neutral-800: #232124;
+  --neutral-850: #1B1A1D;
+  --neutral-900: #17171A;
+  --neutral-950: #0E0E10;
 
-  /* Meaning */
-  --live:         #F2541B;
-  --ok:           #1F9D6B;
-  --friend:       #17171A;
-  --error:        #C2361A;
+  --green-500: #1F9D6B;
+  --green-300: #3CCB8F;
+  --red-500:   #C2361A;
+  --red-300:   #FF7A5C;
 
-  /* Aliases used across the app */
-  --route:        var(--ember);
-  --route-alt:    #17171A;
-  --marker:       var(--ember);
-  --shadow:       rgba(23, 23, 26, 0.10);
-  --map-bg:       #F1EDE8;
+  /* ---- Primitives: spacing (4px grid) ---- */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
 
-  /* Shape & depth */
-  --r-xs: 8px;
-  --r-sm: 12px;
-  --r-md: 16px;
-  --r-lg: 22px;
-  --r-pill: 999px;
-  --shadow-1: 0 1px 2px rgba(23, 23, 26, 0.06), 0 2px 8px rgba(23, 23, 26, 0.06);
-  --shadow-2: 0 4px 12px rgba(23, 23, 26, 0.08), 0 12px 32px rgba(23, 23, 26, 0.10);
-  --shadow-ember: 0 6px 18px rgba(242, 84, 27, 0.35);
+  /* ---- Primitives: type ---- */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-heavy: 800;
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
 
-  /* Motion */
+  /* ---- Primitives: shape & motion ---- */
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --t-fast: 140ms;
   --t-med: 240ms;
   --t-slow: 420ms;
+
+  /* ---- Semantic: colour (light) ---- */
+  --color-canvas:          var(--neutral-25);   /* page / behind the map */
+  --color-surface:         var(--neutral-0);    /* sheets, cards, inputs */
+  --color-surface-sunken:  var(--neutral-50);   /* tracks, quiet panels */
+  --color-text:            var(--neutral-900);
+  --color-text-muted:      var(--neutral-500);
+  --color-border:          var(--neutral-100);
+  --color-border-strong:   var(--neutral-200);
+  --color-primary:         var(--orange-500);
+  --color-primary-hover:   var(--orange-600);
+  --color-primary-soft:    var(--orange-50);    /* selected / highlighted fill */
+  --color-primary-line:    var(--orange-200);   /* soft orange outlines */
+  --color-on-primary:      var(--neutral-0);
+  --color-friend:          var(--orange-800);   /* the other person on maps */
+  --color-success:         var(--green-500);
+  --color-danger:          var(--red-500);
+  --color-scrim:           rgba(23, 23, 26, 0.38);
+  --color-map-bg:          #F1EDE8;
+
+  /* ---- Semantic: depth ---- */
+  --shadow-1: 0 1px 2px rgba(23, 23, 26, 0.06), 0 2px 8px rgba(23, 23, 26, 0.06);
+  --shadow-2: 0 4px 12px rgba(23, 23, 26, 0.08), 0 12px 32px rgba(23, 23, 26, 0.10);
+  --shadow-primary: 0 6px 18px rgba(242, 84, 27, 0.32);
+
+  /* ---- Semantic: layout ---- */
+  --gutter: var(--space-4);          /* screen side padding */
+  --stack-gap: var(--space-5);       /* between sections */
+  --control-gap: var(--space-2);     /* between chips / buttons */
+  --control-height: 44px;            /* minimum touch target */
+  --radius-control: var(--radius-pill);
+  --radius-card: var(--radius-md);
+  --radius-sheet: var(--radius-lg);
 }
 
+/* Dark: only the semantic layer changes. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-mode="light"]) {
-    --ember:        #FF6A33;
-    --ember-strong: #FF8455;
-    --ember-soft:   #3A1F15;
-    --ember-line:   #6B3420;
-    --ink-solid:    #F3EFEA;
-    --on-ink:       #17171A;
-    --paper:        #0E0E10;
-    --panel:        #18181B;
-    --surface-2:    #202024;
-    --ink:          #F3EFEA;
-    --muted:        #9C968F;
-    --contour:      #2A2A2F;
-    --contour-strong: #3A3A40;
-    --ok:           #3CCB8F;
-    --friend:       #F3EFEA;
-    --error:        #FF7A5C;
-    --route-alt:    #F3EFEA;
-    --shadow:       rgba(0, 0, 0, 0.4);
-    --map-bg:       #0E0E10;
+    --color-canvas:          var(--neutral-950);
+    --color-surface:         var(--neutral-850);
+    --color-surface-sunken:  var(--neutral-800);
+    --color-text:            var(--neutral-50);
+    --color-text-muted:      var(--neutral-400);
+    --color-border:          #2A2A2F;
+    --color-border-strong:   #3A3A40;
+    --color-primary:         var(--orange-400);
+    --color-primary-hover:   var(--orange-300);
+    --color-primary-soft:    var(--orange-900);
+    --color-primary-line:    #6B3420;
+    --color-on-primary:      var(--neutral-0);
+    --color-friend:          var(--orange-200);
+    --color-success:         var(--green-300);
+    --color-danger:          var(--red-300);
+    --color-scrim:           rgba(0, 0, 0, 0.55);
+    --color-map-bg:          var(--neutral-950);
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
     --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
-    --shadow-ember: 0 6px 18px rgba(255, 106, 51, 0.3);
+    --shadow-primary: 0 6px 18px rgba(255, 122, 69, 0.28);
     color-scheme: dark;
   }
 }
 
 [data-mode="dark"] {
-  --ember:        #FF6A33;
-  --ember-strong: #FF8455;
-  --ember-soft:   #3A1F15;
-  --ember-line:   #6B3420;
-  --ink-solid:    #F3EFEA;
-  --on-ink:       #17171A;
-  --paper:        #0E0E10;
-  --panel:        #18181B;
-  --surface-2:    #202024;
-  --ink:          #F3EFEA;
-  --muted:        #9C968F;
-  --contour:      #2A2A2F;
-  --contour-strong: #3A3A40;
-  --ok:           #3CCB8F;
-  --friend:       #F3EFEA;
-  --error:        #FF7A5C;
-  --route-alt:    #F3EFEA;
-  --shadow:       rgba(0, 0, 0, 0.4);
-  --map-bg:       #0E0E10;
+  --color-canvas:          var(--neutral-950);
+  --color-surface:         var(--neutral-850);
+  --color-surface-sunken:  var(--neutral-800);
+  --color-text:            var(--neutral-50);
+  --color-text-muted:      var(--neutral-400);
+  --color-border:          #2A2A2F;
+  --color-border-strong:   #3A3A40;
+  --color-primary:         var(--orange-400);
+  --color-primary-hover:   var(--orange-300);
+  --color-primary-soft:    var(--orange-900);
+  --color-primary-line:    #6B3420;
+  --color-on-primary:      var(--neutral-0);
+  --color-friend:          var(--orange-200);
+  --color-success:         var(--green-300);
+  --color-danger:          var(--red-300);
+  --color-scrim:           rgba(0, 0, 0, 0.55);
+  --color-map-bg:          var(--neutral-950);
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
-  --shadow-ember: 0 6px 18px rgba(255, 106, 51, 0.3);
+  --shadow-primary: 0 6px 18px rgba(255, 122, 69, 0.28);
   color-scheme: dark;
+}
+
+/* ---- Legacy aliases (existing components use these names) ----
+   Declared on every theme scope so they resolve against that theme. */
+:root,
+[data-mode="dark"],
+[data-mode="light"] {
+  --ember:          var(--color-primary);
+  --ember-strong:   var(--color-primary-hover);
+  --ember-soft:     var(--color-primary-soft);
+  --ember-line:     var(--color-primary-line);
+  --on-ember:       var(--color-on-primary);
+  /* Solid fills used to be black; the theme is orange and white now. */
+  --ink-solid:      var(--color-primary);
+  --on-ink:         var(--color-on-primary);
+  --paper:          var(--color-canvas);
+  --panel:          var(--color-surface);
+  --surface-2:      var(--color-surface-sunken);
+  --ink:            var(--color-text);
+  --muted:          var(--color-text-muted);
+  --contour:        var(--color-border);
+  --contour-strong: var(--color-border-strong);
+  --live:           var(--color-primary);
+  --ok:             var(--color-success);
+  --friend:         var(--color-friend);
+  --error:          var(--color-danger);
+  --route:          var(--color-primary);
+  --route-alt:      var(--color-friend);
+  --marker:         var(--color-primary);
+  --shadow:         rgba(23, 23, 26, 0.10);
+  --map-bg:         var(--color-map-bg);
+  --shadow-ember:   var(--shadow-primary);
+  --r-xs:   var(--radius-xs);
+  --r-sm:   var(--radius-sm);
+  --r-md:   var(--radius-md);
+  --r-lg:   var(--radius-lg);
+  --r-pill: var(--radius-pill);
 }
 
 * {
@@ -352,4 +449,15 @@ a {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Theme switch: the new theme grows out of the toggle as a circle
+   (View Transitions; ThemeToggle drives the clip-path). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  z-index: 2;
 }

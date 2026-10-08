@@ -6,8 +6,8 @@ import { useThemeMode } from '@/lib/mapStyle';
 // Map libraries draw lines and circles as SVG/WebGL paint, which can't read
 // CSS variables, so the theme's colours are resolved to real values here.
 const FALLBACK = {
-  light: { ember: '#F2541B', ink: '#17171A', onInk: '#FFFFFF', paper: '#F5F2EE' },
-  dark: { ember: '#FF6A33', ink: '#F3EFEA', onInk: '#17171A', paper: '#0E0E10' },
+  light: { ember: '#F2541B', ink: '#8C2B0C', onInk: '#FFFFFF', paper: '#FCFBFA' },
+  dark: { ember: '#FF7A45', ink: '#FFC9AE', onInk: '#17171A', paper: '#0E0E10' },
 };
 
 export function readTokens(mode) {
@@ -17,7 +17,7 @@ export function readTokens(mode) {
   const get = (name, f) => css.getPropertyValue(name).trim() || f;
   return {
     ember: get('--ember', fb.ember),
-    ink: get('--ink-solid', fb.ink),
+    ink: get('--color-friend', fb.ink),
     onInk: get('--on-ink', fb.onInk),
     paper: get('--paper', fb.paper),
   };

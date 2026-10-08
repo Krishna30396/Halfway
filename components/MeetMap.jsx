@@ -35,7 +35,7 @@ const personIcon = (letter, isMe) =>
     L.divIcon({
       className: '',
       html: `<div class="person-pin${isMe ? ' person-pin-me' : ''}" style="background:${
-        isMe ? 'var(--ember)' : 'var(--ink-solid)'
+        isMe ? 'var(--color-primary)' : 'var(--color-friend)'
       };color:${isMe ? 'var(--on-ember)' : 'var(--on-ink)'}">${esc(letter)}</div>`,
       iconSize: [32, 32],
       iconAnchor: [16, 16],

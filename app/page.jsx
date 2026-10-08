@@ -698,7 +698,7 @@ export default function Home() {
       <section className={`${styles.block} hw-rise`} style={{ animationDelay: '50ms' }}>
         <h2 className={styles.sectionLabel}>Where should we look?</h2>
         <ModeSwitch value={mode} onChange={changeMode} />
-        {modeCard}
+        {/* The per-mode card (distance / + Add location / detour) is parked for later. */}
       </section>
 
       <section className={`${styles.block} hw-rise`} style={{ animationDelay: '100ms' }}>

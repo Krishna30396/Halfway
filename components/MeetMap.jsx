@@ -13,6 +13,8 @@ import {
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import VectorBaseLayer from './VectorBaseLayer';
+import { useThemeMode } from '@/lib/mapStyle';
+import { buildLeafletTrafficSegments, TRAFFIC_COLORS, TRAFFIC_CONFIG } from '@/lib/traffic';
 import { CATEGORY_COLORS } from '@/lib/categories';
 import { glideMarker } from '@/lib/liveTracking';
 
@@ -142,6 +144,9 @@ export default function MeetMap({
   fitKey,
   panTarget,
 }) {
+  const mode = useThemeMode();
+  const isNight = mode === 'dark';
+
   const start = me ? [me.lat, me.lng] : friend ? [friend.lat, friend.lng] : [20, 0];
   const points = [
     me && [me.lat, me.lng],
@@ -165,10 +170,37 @@ export default function MeetMap({
       {altRoute && (
         <Polyline
           positions={altRoute}
-          pathOptions={{ color: altRouteColor, weight: 4, opacity: 0.45, dashArray: '6 8' }}
+          pathOptions={{ color: isNight ? '#242A48' : altRouteColor, weight: 4, opacity: isNight ? 0.7 : 0.45, dashArray: '6 8' }}
         />
       )}
-      {route && (
+      {route && isNight && (
+        <>
+          <Polyline
+            positions={route}
+            pathOptions={{
+              color: TRAFFIC_COLORS.CASING,
+              weight: TRAFFIC_CONFIG.CASING_WIDTH,
+              opacity: 1,
+              lineCap: 'round',
+              lineJoin: 'round',
+            }}
+          />
+          {buildLeafletTrafficSegments(route).map((seg, sIdx) => (
+            <Polyline
+              key={`meet-traffic-${sIdx}`}
+              positions={seg.positions}
+              pathOptions={{
+                color: seg.color,
+                weight: TRAFFIC_CONFIG.LINE_WIDTH,
+                opacity: 1,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+            />
+          ))}
+        </>
+      )}
+      {route && !isNight && (
         <Polyline positions={route} pathOptions={{ color: routeColor, weight: follow ? 7 : 5, opacity: 0.92 }} />
       )}
 

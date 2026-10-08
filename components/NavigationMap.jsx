@@ -87,12 +87,17 @@ export default function NavigationMap({
       for (const id of ['alt', 'route']) {
         if (map.getSource(id)) continue;
         map.addSource(id, { type: 'geojson', data: line([]) });
+        const isNight = modeRef.current === 'dark';
         map.addLayer({
           id: `${id}-casing`,
           type: 'line',
           source: id,
           layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#ffffff', 'line-width': id === 'route' ? 12 : 7, 'line-opacity': id === 'route' ? 0.9 : 0.5 },
+          paint: {
+            'line-color': isNight ? '#161A30' : '#ffffff',
+            'line-width': id === 'route' ? (isNight ? 8 : 12) : 7,
+            'line-opacity': id === 'route' ? (isNight ? 1.0 : 0.9) : 0.5,
+          },
         });
         map.addLayer({
           id: `${id}-line`,
@@ -100,9 +105,10 @@ export default function NavigationMap({
           source: id,
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
-            'line-color': id === 'route' ? routeColor : altRouteColor,
-            'line-width': id === 'route' ? 8 : 4,
+            'line-color': isNight && id === 'route' ? ['coalesce', ['get', 'color'], '#00C8FF'] : (id === 'route' ? routeColor : altRouteColor),
+            'line-width': id === 'route' ? (isNight ? 5 : 8) : 4,
             'line-opacity': id === 'route' ? 1 : 0.6,
+            'line-color-transition': { duration: 300 },
             ...(id === 'alt' ? { 'line-dasharray': [1.5, 1.5] } : {}),
           },
         });

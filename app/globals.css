@@ -103,6 +103,8 @@ a {
   border-radius: 50%;
   border: 2px solid rgba(47, 111, 94, 0.55);
   animation: hub-pulse 1.8s ease-out infinite;
+  will-change: transform, opacity;
+  pointer-events: none;
 }
 
 @keyframes hub-pulse {

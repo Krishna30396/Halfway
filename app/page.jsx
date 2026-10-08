@@ -491,10 +491,12 @@ export default function Home() {
         />
       </div>
 
-      {/* Mobile: bottom sheet over the full-screen map */}
-      <BottomSheet hasResults={!!placesData?.length}>
-        <PanelContent {...panelProps} />
-      </BottomSheet>
+      {/* Mobile: bottom sheet fallback only */}
+      <div className={styles.mobileSheet}>
+        <BottomSheet hasResults={!!placesData?.length}>
+          <PanelContent {...panelProps} />
+        </BottomSheet>
+      </div>
 
       {toast && (
         <div className={styles.toast} role="status">

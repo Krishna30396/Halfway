@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Halfway — Map Style Gallery</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: #0f1117;
+    color: #e4e6eb;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .header {
+    padding: 40px 32px 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #6ee7b7, #3b82f6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .header p {
+    color: #8b8fa3;
+    font-size: 15px;
+    max-width: 600px;
+    line-height: 1.5;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: #1a1c25;
+    border-radius: 12px;
+    margin: 24px 32px 0;
+    max-width: 1400px;
+    margin-left: auto;
+    margin-right: auto;
+    width: fit-content;
+  }
+  .tab {
+    padding: 10px 24px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: #8b8fa3;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab:hover { color: #e4e6eb; }
+  .tab.active {
+    background: #2a2d3a;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 20px;
+    padding: 24px 32px 48px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: #1a1c25;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid #2a2d3a;
+    transition: border-color 0.2s, transform 0.2s;
+    position: relative;
+  }
+  .card:hover {
+    border-color: #3b82f6;
+    transform: translateY(-2px);
+  }
+  .card.recommended { border-color: #6ee7b7; }
+  .card.recommended::before {
+    content: 'RECOMMENDED';
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 10;
+    background: #065f46;
+    color: #6ee7b7;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+  .card.current::before {
+    content: 'CURRENT';
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 10;
+    background: #1e3a5f;
+    color: #60a5fa;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+  .card.star::before {
+    content: 'BEST FOR 3D';
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 10;
+    background: #4c1d95;
+    color: #c4b5fd;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+
+  .map-container {
+    width: 100%;
+    height: 280px;
+    position: relative;
+  }
+
+  .card-info {
+    padding: 16px 20px 20px;
+  }
+  .card-info h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-info .provider {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #6b7280;
+    margin-bottom: 6px;
+  }
+  .card-info .desc {
+    font-size: 13px;
+    color: #9ca3af;
+    line-height: 1.5;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+  .badge.vector { background: #1e1b4b; color: #818cf8; }
+  .badge.raster { background: #1c1917; color: #a8a29e; }
+  .badge.free { background: #052e16; color: #4ade80; }
+  .badge.no-key { background: #0c4a6e; color: #38bdf8; }
+
+  .section-header {
+    padding: 0 32px;
+    max-width: 1400px;
+    margin: 32px auto 0;
+  }
+  .section-header h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #e4e6eb;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-header h2 span {
+    font-size: 13px;
+    font-weight: 500;
+    color: #6b7280;
+  }
+
+  .summary {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 32px;
+  }
+  .summary-box {
+    background: linear-gradient(135deg, #1a2332, #1a1c25);
+    border: 1px solid #2a2d3a;
+    border-radius: 16px;
+    padding: 32px;
+  }
+  .summary-box h2 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: #e4e6eb;
+  }
+  .rec-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .rec-item {
+    background: #0f1117;
+    border-radius: 12px;
+    padding: 20px;
+    border-left: 3px solid;
+  }
+  .rec-item.day { border-color: #6ee7b7; }
+  .rec-item.night { border-color: #818cf8; }
+  .rec-item.threeD { border-color: #f472b6; }
+  .rec-item h4 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .rec-item p {
+    font-size: 13px;
+    color: #9ca3af;
+    line-height: 1.5;
+  }
+
+  .hidden { display: none; }
+
+  @media (max-width: 500px) {
+    .grid { grid-template-columns: 1fr; padding: 16px; gap: 16px; }
+    .header { padding: 24px 16px 16px; }
+    .header h1 { font-size: 24px; }
+    .tabs { margin-left: 16px; margin-right: 16px; }
+    .section-header { padding: 0 16px; }
+    .summary { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Map Style Gallery</h1>
+  <p>Every free, open-source map style you can use in Halfway — no API keys, no limits. Compare day, night, and 3D to find the best fit.</p>
+</div>
+
+<div class="tabs" id="tabs">
+  <button class="tab active" data-tab="day">Day Styles</button>
+  <button class="tab" data-tab="night">Night Styles</button>
+  <button class="tab" data-tab="3d">3D Views</button>
+</div>
+
+<!-- DAY STYLES -->
+<div id="day-section" class="tab-section">
+  <div class="section-header">
+    <h2>Day / Light Themes <span>— best for daytime use and readability</span></h2>
+  </div>
+  <div class="grid" id="day-grid"></div>
+</div>
+
+<!-- NIGHT STYLES -->
+<div id="night-section" class="tab-section hidden">
+  <div class="section-header">
+    <h2>Night / Dark Themes <span>— for dark mode and nighttime</span></h2>
+  </div>
+  <div class="grid" id="night-grid"></div>
+</div>
+
+<!-- 3D VIEWS -->
+<div id="3d-section" class="tab-section hidden">
+  <div class="section-header">
+    <h2>3D Buildings &amp; Terrain <span>— elevate the experience</span></h2>
+  </div>
+  <div class="grid" id="3d-grid"></div>
+</div>
+
+<!-- RECOMMENDATIONS -->
+<div class="summary">
+  <div class="summary-box">
+    <h2>My Recommendations for Halfway</h2>
+    <div class="rec-grid">
+      <div class="rec-item day">
+        <h4>Day: OpenFreeMap Bright</h4>
+        <p>Vector tiles — smooth zoom, crisp at every level, warm colors match Halfway's green UI. Free, no key, no limits. Supports 3D buildings out of the box.</p>
+      </div>
+      <div class="rec-item night">
+        <h4>Night: OpenFreeMap Fiord</h4>
+        <p>Deep navy-blue tones feel more premium than plain dark. Easier on the eyes at night while keeping roads and labels clear. Your green pins pop beautifully on it.</p>
+      </div>
+      <div class="rec-item threeD">
+        <h4>3D: Bright + Buildings (day) / Fiord + Buildings (night)</h4>
+        <p>Add 3D extruded buildings at zoom 14+. Already works with your OpenFreeMap setup — just toggle the building layer. Terrain hills add dramatic context for outdoor meetups.</p>
+      </div>
+    </div>
+    <p style="margin-top:20px;font-size:13px;color:#6b7280;line-height:1.6">
+      <strong style="color:#e4e6eb">Current setup:</strong> OSM raster (day) + OpenFreeMap Dark (night). The raster tiles can't zoom smoothly and look pixelated on retina screens.
+      Switching to <strong style="color:#6ee7b7">OpenFreeMap Bright</strong> for day would give you vector sharpness, smooth rotation, and 3D — all free, all keyless, zero migration effort since you already load OpenFreeMap for dark mode.
+    </p>
+  </div>
+</div>
+
+<script>
+const CENTER = [78.3915, 17.4935]; // Hyderabad — near Halfway devs
+const ZOOM = 13;
+
+const DAY_STYLES = [
+  {
+    id: 'ofm-bright',
+    name: 'OpenFreeMap Bright',
+    provider: 'openfreemap.org',
+    type: 'vector',
+    style: 'https://tiles.openfreemap.org/styles/bright',
+    desc: 'Warm, colorful vector map. Smooth zoom, crisp labels at every level. Best upgrade from current OSM raster.',
+    badge: 'recommended',
+    noKey: true,
+  },
+  {
+    id: 'maptoolkit-summer',
+    name: 'Maptoolkit Summer',
+    provider: 'maptoolkit.org',
+    type: 'vector',
+    style: 'https://styles.maptoolkit.org/summer.json',
+    desc: 'Warm, seasonal palette. Vibrant greens and soft tones. Free, no key, EU-hosted. 13 languages.',
+    noKey: true,
+  },
+  {
+    id: 'maptoolkit-street',
+    name: 'Maptoolkit Street',
+    provider: 'maptoolkit.org',
+    type: 'vector',
+    style: 'https://styles.maptoolkit.org/street.json',
+    desc: 'Clean street map. Modern vector styling with excellent label placement.',
+    noKey: true,
+  },
+  {
+    id: 'versatiles-colorful',
+    name: 'VersaTiles Colorful',
+    provider: 'versatiles.org',
+    type: 'vector',
+    style: 'https://tiles.versatiles.org/assets/styles/colorful/style.json',
+    desc: 'Bold, vivid colors. Fully open-source German project. No limits, no key.',
+    noKey: true,
+  },
+  {
+    id: 'osm-standard',
+    name: 'OpenStreetMap Standard',
+    provider: 'openstreetmap.org',
+    type: 'raster',
+    style: {
+      version: 8,
+      sources: { tiles: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap' }},
+      layers: [{ id: 'tiles', type: 'raster', source: 'tiles' }]
+    },
+    desc: 'The classic. Familiar but looks dated on modern apps. Pixelated at high zoom on retina.',
+    badge: 'current',
+    noKey: true,
+  },
+  {
+    id: 'ofm-liberty',
+    name: 'OpenFreeMap Liberty',
+    provider: 'openfreemap.org',
+    type: 'vector',
+    style: 'https://tiles.openfreemap.org/styles/liberty',
+    desc: 'OSM-like colors in vector form. Smooth zoom and rotation. Good middle ground.',
+    noKey: true,
+  },
+  {
+    id: 'maptoolkit-light',
+    name: 'Maptoolkit Light',
+    provider: 'maptoolkit.org',
+    type: 'vector',
+    style: 'https://styles.maptoolkit.org/light.json',
+    desc: 'Minimal light vector. Clean and subtle — great for data overlays and colored pins.',
+    noKey: true,
+  },
+  {
+    id: 'ofm-positron',
+    name: 'OpenFreeMap Positron',
+    provider: 'openfreemap.org',
+    type: 'vector',
+    style: 'https://tiles.openfreemap.org/styles/positron',
+    desc: 'Minimal vector. Clean and modern. Labels are subtle — data overlays dominate.',
+    noKey: true,
+  },
+  {
+    id: 'esri-satellite',
+    name: 'Esri World Imagery',
+    provider: 'arcgisonline.com',
+    type: 'raster',
+    style: {
+      version: 8,
+      sources: { tiles: { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, attribution: '© Esri' }},
+      layers: [{ id: 'tiles', type: 'raster', source: 'tiles' }]
+    },
+    desc: 'Real satellite imagery. Good for terrain context or as a secondary view toggle.',
+    noKey: true,
+  },
+  {
+    id: 'osm-hot',
+    name: 'OSM Humanitarian',
+    provider: 'openstreetmap.fr',
+    type: 'raster',
+    style: {
+      version: 8,
+      sources: { tiles: { type: 'raster', tiles: [
+        'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+        'https://b.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+      ], tileSize: 256, attribution: '© OpenStreetMap HOT' }},
+      layers: [{ id: 'tiles', type: 'raster', source: 'tiles' }]
+    },
+    desc: 'High-contrast variant. Roads and key landmarks pop. Designed for field use.',
+    noKey: true,
+  },
+];
+
+const NIGHT_STYLES = [
+  {
+    id: 'ofm-fiord-contrast',
+    name: 'Fiord (Crisp White Labels)',
+    provider: 'Halfway Custom (OpenFreeMap)',
+    type: 'vector',
+    style: '/styles/fiord.json',
+    desc: 'Deep navy-blue Fiord base with pure white city, town & suburb labels. High contrast, sharp readability.',
+    badge: 'recommended',
+    noKey: true,
+  },
+  {
+    id: 'ofm-fiord',
+    name: 'OpenFreeMap Fiord (Default)',
+    provider: 'openfreemap.org',
+    type: 'vector',
+    style: 'https://tiles.openfreemap.org/styles/fiord',
+    desc: 'Deep navy-blue tones with default blue labels. More subtle, but lower contrast.',
+    noKey: true,
+  },
+  {
+    id: 'ofm-dark',
+    name: 'OpenFreeMap Dark',
+    provider: 'openfreemap.org',
+    type: 'vector',
+    style: '/styles/dark.json',
+    desc: 'Deep dark theme with lifted grey-blue roads and high-contrast white labels.',
+    badge: 'current',
+    noKey: true,
+  },
+  {
+    id: 'maptoolkit-dark',
+    name: 'Maptoolkit Dark',
+    provider: 'maptoolkit.org',
+    type: 'vector',
+    style: 'https://styles.maptoolkit.org/dark.json',
+    desc: 'Rich dark vector. EU-hosted, no key. Different tone from OpenFreeMap Dark — worth comparing.',
+    noKey: true,
+  },
+  {
+    id: 'versatiles-eclipse',
+    name: 'VersaTiles Eclipse',
+    provider: 'versatiles.org',
+    type: 'vector',
+    style: 'https://tiles.versatiles.org/assets/styles/eclipse/style.json',
+    desc: 'Deep dark style. Open-source German project. Unique rendering — no API key ever needed.',
+    noKey: true,
+  },
+];
+
+const THREE_D_STYLES = [
+  {
+    id: '3d-bright',
+    name: 'Bright + 3D Buildings',
+    provider: 'openfreemap.org',
+    type: 'vector',
+    style: 'https://tiles.openfreemap.org/styles/bright',
+    desc: 'Warm daytime map with extruded 3D buildings. Zoom in to see buildings rise. Great for city meetups.',
+    pitch: 60,
+    bearing: 160,
+    zoom: 16,
+    buildings: true,
+    buildingColor: '#d9d0c1',
+    noKey: true,
+  },
+  {
+    id: '3d-fiord',
+    name: 'Fiord + 3D Buildings',
+    provider: 'openfreemap.org',
+    type: 'vector',
+    style: 'https://tiles.openfreemap.org/styles/fiord',
+    desc: 'Navy night view with glowing 3D buildings. Premium, immersive feel for nighttime navigation.',
+    badge: 'star',
+    pitch: 60,
+    bearing: -30,
+    zoom: 16,
+    buildings: true,
+    buildingColor: '#3d4c62',
+    noKey: true,
+  },
+  {
+    id: '3d-dark',
+    name: 'Dark + 3D Buildings',
+    provider: 'openfreemap.org',
+    type: 'vector',
+    style: 'https://tiles.openfreemap.org/styles/dark',
+    desc: 'Dark map with subtle 3D buildings. Minimal and focused.',
+    pitch: 55,
+    bearing: 20,
+    zoom: 16,
+    buildings: true,
+    buildingColor: '#30343a',
+    noKey: true,
+  },
+  {
+    id: '3d-terrain',
+    name: 'Bright + Terrain Hills',
+    provider: 'openfreemap.org + AWS Terrain',
+    type: 'vector',
+    style: 'https://tiles.openfreemap.org/styles/bright',
+    desc: 'Terrain elevation with hillshade and sky. Dramatic for outdoor/hiking meetup spots.',
+    pitch: 70,
+    bearing: 200,
+    zoom: 13.2,
+    terrain: true,
+    noKey: true,
+  },
+  {
+    id: '3d-liberty',
+    name: 'Liberty + 3D Buildings',
+    provider: 'openfreemap.org',
+    type: 'vector',
+    style: 'https://tiles.openfreemap.org/styles/liberty',
+    desc: 'Classic OSM colors with 3D extrusion. Buildings already styled — Liberty includes building height data.',
+    pitch: 58,
+    bearing: -40,
+    zoom: 16,
+    buildings: true,
+    buildingColor: '#d0c8b8',
+    noKey: true,
+  },
+];
+
+function createCard(item) {
+  const card = document.createElement('div');
+  card.className = 'card' + (item.badge === 'recommended' ? ' recommended' : '') + (item.badge === 'current' ? ' current' : '') + (item.badge === 'star' ? ' star' : '');
+  const isNight = item.id.includes('fiord') || item.id.includes('dark') || item.id.includes('eclipse');
+  card.innerHTML = `
+    <div class="map-container" id="map-${item.id}"></div>
+    <div class="card-info">
+      <h3>
+        ${item.name}
+        <span class="badge ${item.type}">${item.type}</span>
+        ${item.noKey ? '<span class="badge no-key">NO KEY</span>' : ''}
+        <span class="badge free">FREE</span>
+      </h3>
+      <div class="provider">${item.provider}</div>
+      <div class="desc">${item.desc}</div>
+      ${isNight ? `
+        <div style="margin-top:10px;padding-top:8px;border-top:1px solid #2a2d3a;display:flex;flex-wrap:wrap;gap:12px;font-size:11px;font-family:'JetBrains Mono',monospace;color:#9ca3af;">
+          <span><span style="display:inline-block;width:9px;height:9px;background:#00C8FF;border-radius:2px;margin-right:4px;vertical-align:middle;"></span>Free flow #00C8FF</span>
+          <span><span style="display:inline-block;width:9px;height:9px;background:#FF4D4D;border-radius:2px;margin-right:4px;vertical-align:middle;"></span>Heavy #FF4D4D</span>
+          <span><span style="display:inline-block;width:9px;height:9px;background:#FFFFFF;border-radius:2px;margin-right:4px;vertical-align:middle;"></span>Labels #FFFFFF</span>
+        </div>
+      ` : ''}
+    </div>
+  `;
+  return card;
+}
+
+function initMap(item) {
+  const container = document.getElementById(`map-${item.id}`);
+  if (!container || container.dataset.loaded) return;
+  container.dataset.loaded = 'true';
+
+  const map = new maplibregl.Map({
+    container,
+    style: item.style,
+    center: CENTER,
+    zoom: item.zoom || ZOOM,
+    pitch: item.pitch || 0,
+    bearing: item.bearing || 0,
+    maxPitch: 85,
+    attributionControl: false,
+  });
+
+  map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+
+  map.on('load', () => {
+    if (item.buildings) {
+      map.addLayer({
+        id: 'buildings-3d',
+        source: 'openmaptiles',
+        'source-layer': 'building',
+        type: 'fill-extrusion',
+        minzoom: 14,
+        paint: {
+          'fill-extrusion-color': item.buildingColor || '#d6d6d6',
+          'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 10],
+          'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+          'fill-extrusion-opacity': 0.85,
+        },
+      });
+    }
+
+    if (item.terrain) {
+      map.addSource('dem', {
+        type: 'raster-dem',
+        tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+        encoding: 'terrarium',
+        tileSize: 256,
+        maxzoom: 14,
+      });
+      const firstLabel = map.getStyle().layers.find(l => l.type === 'symbol')?.id;
+      map.addLayer({ id: 'hills', type: 'hillshade', source: 'dem', paint: { 'hillshade-exaggeration': 0.6 } }, firstLabel);
+      map.setTerrain({ source: 'dem', exaggeration: 2.2 });
+      if (map.setSky) map.setSky({ 'sky-color': '#9cc5ec', 'horizon-color': '#e9f1f7', 'sky-horizon-blend': 0.6 });
+    }
+
+    // Add halfway-style pins
+    const pinA = document.createElement('div');
+    pinA.style.cssText = 'width:14px;height:14px;border-radius:50%;background:#fff;border:2.5px solid #1E2A24;box-shadow:0 1px 3px rgba(30,42,36,.35)';
+    const pinB = document.createElement('div');
+    pinB.style.cssText = 'width:14px;height:14px;border-radius:50%;background:#fff;border:2.5px solid #1E2A24;box-shadow:0 1px 3px rgba(30,42,36,.35)';
+    const pinMid = document.createElement('div');
+    pinMid.style.cssText = 'width:14px;height:14px;background:#C51162;transform:rotate(45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(197,17,98,.5)';
+
+    if (!item.pitch) {
+      // 2-colour traffic route: Blue #00C8FF (free flow), Red #FF4D4D (heavy jam)
+      // Casing #161A30 (line width 5 + 3px = 8), round caps/joins
+      const routeData = {
+        type: 'FeatureCollection',
+        features: [
+          { type: 'Feature', geometry: { type: 'LineString', coordinates: [[78.365, 17.510], [78.374, 17.504]] }, properties: { color: '#00C8FF', status: 'free' } },
+          { type: 'Feature', geometry: { type: 'LineString', coordinates: [[78.374, 17.504], [78.383, 17.498]] }, properties: { color: '#00C8FF', status: 'free' } },
+          { type: 'Feature', geometry: { type: 'LineString', coordinates: [[78.383, 17.498], [78.3915, 17.4935]] }, properties: { color: '#FF4D4D', status: 'heavy' } },
+          { type: 'Feature', geometry: { type: 'LineString', coordinates: [[78.3915, 17.4935], [78.404, 17.487]] }, properties: { color: '#00C8FF', status: 'free' } },
+          { type: 'Feature', geometry: { type: 'LineString', coordinates: [[78.404, 17.487], [78.420, 17.478]] }, properties: { color: '#00C8FF', status: 'free' } },
+        ]
+      };
+
+      map.addSource('traffic-route', { type: 'geojson', data: routeData });
+
+      map.addLayer({
+        id: 'traffic-route-casing',
+        type: 'line',
+        source: 'traffic-route',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#161A30',
+          'line-width': 8, // line width + 3px
+        }
+      });
+
+      map.addLayer({
+        id: 'traffic-route-line',
+        type: 'line',
+        source: 'traffic-route',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 5,
+          'line-color-transition': { duration: 300 }
+        }
+      });
+
+      // 60s refresh
+      setInterval(() => {
+        if (!map.getSource('traffic-route')) return;
+        map.getSource('traffic-route').setData(routeData);
+      }, 60000);
+
+      new maplibregl.Marker({ element: pinA }).setLngLat([78.365, 17.510]).addTo(map);
+      new maplibregl.Marker({ element: pinB }).setLngLat([78.420, 17.478]).addTo(map);
+      new maplibregl.Marker({ element: pinMid }).setLngLat(CENTER).addTo(map);
+    }
+  });
+}
+
+// Populate grids
+const dayGrid = document.getElementById('day-grid');
+const nightGrid = document.getElementById('night-grid');
+const threeGrid = document.getElementById('3d-grid');
+
+DAY_STYLES.forEach(s => dayGrid.appendChild(createCard(s)));
+NIGHT_STYLES.forEach(s => nightGrid.appendChild(createCard(s)));
+THREE_D_STYLES.forEach(s => threeGrid.appendChild(createCard(s)));
+
+// Lazy init maps with IntersectionObserver
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id.replace('map-', '');
+      const allStyles = [...DAY_STYLES, ...NIGHT_STYLES, ...THREE_D_STYLES];
+      const item = allStyles.find(s => s.id === id);
+      if (item) initMap(item);
+    }
+  });
+}, { rootMargin: '200px' });
+
+document.querySelectorAll('.map-container').forEach(el => observer.observe(el));
+
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const target = tab.dataset.tab;
+    document.querySelectorAll('.tab-section').forEach(s => s.classList.add('hidden'));
+    document.getElementById(`${target}-section`).classList.remove('hidden');
+
+    // Trigger map init for newly visible section
+    setTimeout(() => {
+      document.querySelectorAll(`#${target}-section .map-container`).forEach(el => {
+        const id = el.id.replace('map-', '');
+        const allStyles = [...DAY_STYLES, ...NIGHT_STYLES, ...THREE_D_STYLES];
+        const item = allStyles.find(s => s.id === id);
+        if (item) initMap(item);
+      });
+    }, 100);
+  });
+});
+
+// Init visible day maps
+setTimeout(() => {
+  DAY_STYLES.forEach(s => initMap(s));
+}, 200);
+</script>
+</body>
+</html>

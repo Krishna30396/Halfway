@@ -1,22 +1,35 @@
 .app {
   display: flex;
   height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+  position: relative;
 }
 
 /* ---- Desktop sidebar ---- */
 .panel {
-  width: 380px;
+  width: clamp(320px, 28vw, 400px);
+  min-width: 320px;
+  max-width: 400px;
   flex-shrink: 0;
+  height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px 18px 28px;
   border-right: 1px solid var(--contour);
   background: var(--paper);
+  z-index: 1000;
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .map {
   flex: 1;
   min-width: 0;
   position: relative;
+  height: 100%;
+  z-index: 0;
 }
 
 .mapLoading {
@@ -230,28 +243,46 @@
   overflow-wrap: anywhere;
 }
 
-/* ---- Mobile: full-screen map + bottom sheet ---- */
+/* ---- Mobile: vertical stack (map 45vh top, panel bottom, no overlap) ---- */
 @media (max-width: 768px) {
   .app {
     flex-direction: column;
     height: 100dvh;
-    position: relative;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
-  /* Hide the desktop sidebar on mobile */
-  .panel {
-    display: none;
-  }
-
-  /* Map fills the entire screen behind the sheet */
   .map {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 100dvh;
-    z-index: 1;
+    order: 1;
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    height: 45vh;
+    min-height: 280px;
+    width: 100%;
+    flex: none;
+    z-index: 0;
+  }
+
+  .panel {
+    order: 2;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    flex: 1;
+    height: auto;
+    min-height: 55vh;
+    border-right: none;
+    border-top: 1px solid var(--contour);
+    padding: 16px 16px 32px;
+    z-index: 10;
+  }
+
+  .mobileSheet {
+    display: none !important;
   }
 
   .header {
@@ -269,6 +300,6 @@
 
   .toast {
     bottom: 20dvh;
-    z-index: 200;
+    z-index: 2000;
   }
 }

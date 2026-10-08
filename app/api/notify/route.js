@@ -94,16 +94,16 @@ const FRIEND_TYPES = {
     status: 'pending',
     sender: 'requester',
     recipient: 'addressee',
-    title: (n) => `${n} wants to be friends`,
-    body: () => 'Accept to plan meetups together.',
+    title: (n) => `🤝 ${plain(n)} wants to be friends`,
+    body: () => 'Tap to accept on Halfway',
   },
   friend_accepted: {
     email: true,
     status: 'accepted',
     sender: 'addressee',
     recipient: 'requester',
-    title: (n) => `${n} accepted your friend request`,
-    body: () => 'You can now meet up on Halfway.',
+    title: (n) => `🤝 ${plain(n)} accepted your friend request`,
+    body: () => 'You can meet up now',
   },
 };
 
@@ -168,14 +168,16 @@ function isDuplicate(key) {
 
 const fail = (error, status) => Response.json({ error }, { status });
 
-// Spam filters distrust emoji subjects and brand-only senders; plain words and
-// a person's name ("krishna (via Halfway)") read like a real message.
+// "@krishna" → "krishna": names read as a person, and the sender line
+// ("krishna (via Halfway)") already says who it's from.
 const plain = (n) => String(n).replace(/^@/, '');
 
 const fmtKm = (km) => (km == null ? null : km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`);
 
-// Subject, detail rows and map pin for a meetup email.
-async function meetupEmail(admin, type, m, n, caller, recipient) {
+// One message per meetup event, in three levels: who (the sender name), what
+// (title: emoji + action + place) and one short detail line (preview). The
+// same words go in the phone notification and the email subject / preview.
+async function meetupMessage(admin, type, m, n, caller, recipient) {
   const place =
     type === 'place_proposed'
       ? { name: m.proposal_name, lat: m.proposal_lat, lng: m.proposal_lng }
@@ -190,30 +192,40 @@ async function meetupEmail(admin, type, m, n, caller, recipient) {
   const theirs = locs?.find((l) => l.user_id === caller);
   const away = (l) => (l && place?.lat != null ? fmtKm(haversine([l.lat, l.lng], [place.lat, place.lng])) : null);
   const apart = mine && theirs ? fmtKm(haversine([mine.lat, mine.lng], [theirs.lat, theirs.lng])) : null;
+  const eta = theirs?.eta_min != null ? `~${Math.max(1, Math.round(theirs.eta_min))} min` : null;
+  const join = (...parts) => parts.filter(Boolean).join(' · ');
 
   switch (type) {
     case 'meet_request':
-      return { subject: `${plain(n)} wants to meet up on Halfway`, details: [['From', n]], button: 'Share my location' };
+      return { title: `👋 ${n} wants to meet up`, preview: 'Tap to share your location and pick a place', button: 'Share my location' };
+    case 'meet_cancelled':
+      return { title: `🚫 ${n} cancelled the meetup`, preview: 'You can start a new one any time' };
     case 'meet_accepted':
-      return { subject: `${plain(n)} is in. Pick a place to meet`, details: [['You are', apart && `${apart} apart`]], button: 'Pick a place' };
+      return { title: `🎉 ${n} is in`, preview: join(apart && `${apart} apart`, 'pick a place to meet'), button: 'Pick a place' };
+    case 'meet_declined':
+      return { title: `${n} can't meet right now`, preview: 'Your meetup request was declined' };
     case 'place_proposed':
       return {
-        subject: `${plain(n)} suggested ${place.name} for your meetup`,
+        title: `📍 ${n} suggested ${place.name}`,
+        preview: join(away(mine) && `${away(mine)} from you`, 'tap to accept'),
         details: [['Place', place.name], ['From you', away(mine)], [`From ${n}`, away(theirs)]],
         map: place,
         button: 'Accept or suggest another',
       };
+    case 'place_rejected':
+      return { title: `↩️ ${n} passed on that place`, preview: 'Suggest somewhere else' };
     case 'place_agreed':
       return {
-        subject: `You're meeting ${plain(n)} at ${place.name}`,
-        details: [
-          ['Place', place.name],
-          ['From you', away(mine)],
-          [`${n} arrives in`, theirs?.eta_min != null ? `~${Math.round(theirs.eta_min)} min` : null],
-        ],
+        title: `✅ Meeting ${n} at ${place.name}`,
+        preview: join(away(mine) && `${away(mine)} from you`, eta && `${n} is ${eta} away`),
+        details: [['Place', place.name], ['From you', away(mine)], [`${n} arrives in`, eta]],
         map: place,
         button: 'Start navigation',
       };
+    case 'arrived':
+      return { title: `📍 ${n} has arrived`, preview: place ? `At ${place.name}` : 'At the meeting place' };
+    case 'meet_ended':
+      return { title: `🏁 ${n} ended the meetup`, preview: 'Location sharing has stopped' };
     default:
       return {};
   }
@@ -287,10 +299,7 @@ export async function POST(request) {
     url = '/friends';
     tag = `friend-${id}`;
     email = !!rule.email;
-    emailExtra =
-      type === 'friend_request'
-        ? { subject: `${plain(n)} wants to be friends on Halfway`, button: 'Accept request' }
-        : { subject: `${plain(n)} accepted your friend request on Halfway`, button: 'Meet up' };
+    emailExtra = { button: type === 'friend_request' ? 'Accept request' : 'Meet up' };
   } else if (MEETUP_TYPES[type]) {
     const rule = MEETUP_TYPES[type];
     const { data: m } = await admin.from('meetups').select('*').eq('id', id).maybeSingle();
@@ -321,7 +330,12 @@ export async function POST(request) {
     sticky = !!rule.sticky;
     email = !!rule.email;
     if (rule.ttl) ttl = rule.ttl;
-    if (email) emailExtra = await meetupEmail(admin, type, m, n, caller, recipient);
+    const msg = await meetupMessage(admin, type, m, plain(n), caller, recipient);
+    if (msg.title) {
+      title = msg.title;
+      text = msg.preview;
+    }
+    if (email) emailExtra = { details: msg.details, map: msg.map, button: msg.button };
   } else {
     return fail('Unknown notification type.', 400);
   }
@@ -422,7 +436,8 @@ export async function POST(request) {
         text,
         url,
         ...emailExtra,
-        fromName: emailExtra.subject && type !== 'test' ? `${plain(await senderName())} (via Halfway)` : undefined,
+        preheader: text,
+        fromName: type !== 'test' ? `${plain(await senderName())} (via Halfway)` : undefined,
         origin: new URL(request.url).origin,
       });
       sent++;

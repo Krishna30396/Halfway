@@ -10,6 +10,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import { getSupabase } from '@/lib/supabase';
 import { useFriends } from '@/lib/useFriends';
 import { displayName, initialOf, savePendingInvite, USERNAME_RE } from '@/lib/social';
+import { ArrowLeft, PlusIcon } from '@/components/meet/icons';
 import s from '@/components/Social.module.css';
 
 const STATUS_LABEL = {
@@ -69,7 +70,8 @@ export default function FriendsPage() {
   if (authLoading || (user && !loaded)) {
     return (
       <Shell>
-        <p className={s.muted}>Loading…</p>
+        <span className={s.spinner} aria-hidden="true" />
+        <p className={s.muted} style={{ textAlign: 'center' }}>Loading…</p>
       </Shell>
     );
   }
@@ -78,7 +80,7 @@ export default function FriendsPage() {
     return (
       <Shell>
         <div className={s.card}>
-          <h2 className={s.meetTitle} style={{ marginBottom: 12 }}>Meet friends halfway, live</h2>
+          <h2 className={s.meetTitle} style={{ marginBottom: 6 }}>Meet friends halfway, live</h2>
           <UsernameSetup onDone={f.reload} />
         </div>
       </Shell>
@@ -159,12 +161,12 @@ export default function FriendsPage() {
     })();
 
   return (
-    <Shell>
+    <Shell me={me}>
       {/* ---- You ---- */}
       <section className={s.card}>
-        <h2 className={s.cardTitle}>You</h2>
         {editing ? (
           <form onSubmit={saveProfile}>
+            <h2 className={s.cardTitle}>{needsUsername ? 'Pick a username' : 'Edit profile'}</h2>
             {needsUsername && (
               <p className={s.muted} style={{ marginBottom: 12 }}>
                 Pick a username so friends can find you.
@@ -208,52 +210,80 @@ export default function FriendsPage() {
             </div>
           </form>
         ) : (
-          <>
-            <div className={s.person} style={{ padding: 0 }}>
-              <div className={s.avatar}>{initialOf(me)}</div>
-              <div className={s.personInfo}>
-                <div className={s.personName}>{me.display_name || `@${me.username}`}</div>
-                <div className={s.personSub}>@{me.username}</div>
+          <div className={s.profile}>
+            <div className={`${s.avatar} ${s.avatarSoft}`}>{initialOf(me)}</div>
+            <div className={s.personInfo}>
+              <div className={s.personName}>{me.display_name || `@${me.username}`}</div>
+              <div className={s.personSub}>
+                <span className={s.handle}>@{me.username}</span>
               </div>
-              <button type="button" className={`${s.secondary} ${s.small}`} onClick={startEdit}>
-                Edit
-              </button>
             </div>
-            <div className={s.actions}>
-              <button type="button" className={s.secondary} onClick={shareInvite}>
-                Share my invite link
-              </button>
-            </div>
-          </>
+            <button type="button" className={s.openPill} onClick={startEdit}>
+              Edit
+            </button>
+          </div>
         )}
       </section>
 
-      <NotificationToggle showTest />
-      <EmailAlerts />
+      {!editing && (
+        <button type="button" className={s.invite} onClick={shareInvite} disabled={busy === 'share'}>
+          <span className={s.inviteIcon} aria-hidden="true">
+            <PlusIcon />
+          </span>
+          <span className={s.inviteText}>
+            <strong>{busy === 'share' ? 'Opening share…' : 'Invite a friend'}</strong>
+            Share your link on WhatsApp, SMS or anywhere
+          </span>
+        </button>
+      )}
+
+      {/* ---- Add a friend ---- */}
+      <section>
+        <form className={s.addRow} onSubmit={addFriend}>
+          <input
+            className={s.input}
+            value={addName}
+            onChange={(e) => setAddName(e.target.value)}
+            placeholder="Add by username"
+            autoCapitalize="none"
+            aria-label="Friend's username"
+            disabled={!me?.username}
+          />
+          <button type="submit" className={s.secondary} disabled={busy === 'add' || !me?.username || !addName.trim()}>
+            {busy === 'add' ? 'Adding…' : 'Add'}
+          </button>
+        </form>
+        {f.inviteResult && (
+          <p className={f.inviteResult.err ? s.error : s.ok} style={{ marginTop: 10 }}>
+            {f.inviteResult.text}
+          </p>
+        )}
+        {msg && <p className={msg.err ? s.error : s.ok} style={{ marginTop: 10 }}>{msg.text}</p>}
+      </section>
 
       {/* ---- Live / pending meetups ---- */}
       {meetups.length > 0 && (
-        <section className={s.card}>
-          <h2 className={s.cardTitle}>Meetups</h2>
-          <ul className={s.list}>
+        <section>
+          <h2 className={s.sectionLabel}>Meetups</h2>
+          <ul className={s.listCard}>
             {meetups.map((m) => {
               const other = m.created_by === user.id ? m.invitee : m.created_by;
-              const waitingOnMe = m.status === 'requested' && m.invitee === user.id;
+              const waitingOnMe = f.needsMe(m);
               return (
                 <li key={m.id} className={s.person}>
-                  <div className={`${s.avatar} ${s.avatarAlt}`}>{initialOf(people[other])}</div>
+                  <div className={`${s.avatar} ${s.avatarSoft}`}>{initialOf(people[other])}</div>
                   <div className={s.personInfo}>
                     <div className={s.personName}>{displayName(people[other])}</div>
                     <div className={s.personSub}>
-                      {waitingOnMe
+                      <span className={`${s.statusDot} ${m.status === 'live' ? s.statusDotLive : ''}`} aria-hidden="true" />
+                      {m.status === 'requested' && m.invitee === user.id
                         ? 'Wants to meet up with you'
                         : m.status === 'live' && m.dest_name
-                          ? `Heading to ${m.dest_name}`
+                          ? `Live · heading to ${m.dest_name}`
                           : STATUS_LABEL[m.status]}
                     </div>
                   </div>
-                  {m.status === 'live' && <span className={`${s.pill} ${s.pillLive}`}>Live</span>}
-                  <Link href={`/meet/${m.id}`} className={`${waitingOnMe ? s.primary : s.secondary} ${s.small}`}>
+                  <Link href={`/meet/${m.id}`} className={waitingOnMe ? s.respondPill : s.openPill}>
                     {waitingOnMe ? 'Respond' : 'Open'}
                   </Link>
                 </li>
@@ -265,11 +295,11 @@ export default function FriendsPage() {
 
       {/* ---- Incoming requests ---- */}
       {incoming.length > 0 && (
-        <section className={s.card}>
-          <h2 className={s.cardTitle}>
+        <section>
+          <h2 className={s.sectionLabel}>
             Friend requests <span className={s.count}>{incoming.length}</span>
           </h2>
-          <ul className={s.list}>
+          <ul className={s.listCard}>
             {incoming.map((f) => {
               const p = people[f.requester];
               return (
@@ -277,24 +307,25 @@ export default function FriendsPage() {
                   <div className={`${s.avatar} ${s.avatarAlt}`}>{initialOf(p)}</div>
                   <div className={s.personInfo}>
                     <div className={s.personName}>{displayName(p)}</div>
-                    {p?.username && <div className={s.personSub}>@{p.username}</div>}
+                    <div className={s.personSub}>{p?.username ? `@${p.username}` : 'Wants to be friends'}</div>
                   </div>
                   <div className={s.personActions}>
                     <button
                       type="button"
-                      className={`${s.primary} ${s.small}`}
+                      className={s.respondPill}
                       onClick={() => accept(f)}
                       disabled={busy === f.id}
                     >
-                      Accept
+                      {busy === f.id ? '…' : 'Accept'}
                     </button>
                     <button
                       type="button"
-                      className={`${s.secondary} ${s.small}`}
+                      className={s.iconRemove}
                       onClick={() => remove(f)}
                       disabled={busy === f.id}
+                      aria-label={`Decline ${displayName(p)}`}
                     >
-                      Decline
+                      ×
                     </button>
                   </div>
                 </li>
@@ -305,20 +336,21 @@ export default function FriendsPage() {
       )}
 
       {/* ---- Friends ---- */}
-      <section className={s.card}>
-        <h2 className={s.cardTitle}>
-          Friends {friends.length > 0 && <span className={s.count}>{friends.length}</span>}
+      <section>
+        <h2 className={s.sectionLabel}>
+          Your friends {friends.length > 0 && <span className={s.count}>{friends.length}</span>}
         </h2>
         {friends.length === 0 ? (
-          <p className={s.muted}>
-            No friends yet. Add someone by username below, or share your invite link.
+          <p className={`${s.card} ${s.muted}`}>
+            No friends yet. Tap <strong>Invite a friend</strong> above, or add someone by username.
           </p>
         ) : (
-          <ul className={s.list}>
+          <ul className={s.listCard}>
             {friends.map((f) => {
               const id = otherOf(f);
               const p = people[id];
               const open = meetupWith(id);
+              const pending = busy === id || opening === id;
               return (
                 <li key={f.id} className={s.person}>
                   <div className={`${s.avatar} ${s.avatarAlt}`}>{initialOf(p)}</div>
@@ -329,15 +361,15 @@ export default function FriendsPage() {
                   <div className={s.personActions}>
                     <button
                       type="button"
-                      className={`${s.primary} ${s.small}`}
+                      className={open ? s.openPill : s.respondPill}
                       onClick={() => meetUp(id)}
-                      disabled={busy === id || opening === id}
+                      disabled={pending}
                     >
-                      {busy === id || opening === id ? 'Opening…' : open ? 'Open meetup' : 'Meet up'}
+                      {pending ? 'Opening…' : open ? 'Open' : 'Meet up'}
                     </button>
                     <button
                       type="button"
-                      className={`${s.secondary} ${s.small}`}
+                      className={s.iconRemove}
                       aria-label={`Remove ${displayName(p)}`}
                       onClick={() => remove(f, `Remove ${displayName(p)} from your friends?`)}
                       disabled={busy === f.id}
@@ -352,69 +384,61 @@ export default function FriendsPage() {
         )}
       </section>
 
-      {/* ---- Add a friend ---- */}
-      <section className={s.card}>
-        <h2 className={s.cardTitle}>Add a friend</h2>
-        <form className={s.row} onSubmit={addFriend}>
-          <input
-            className={s.input}
-            value={addName}
-            onChange={(e) => setAddName(e.target.value)}
-            placeholder="Their username"
-            autoCapitalize="none"
-            aria-label="Friend's username"
-            disabled={!me?.username}
-          />
-          <button type="submit" className={s.primary} disabled={busy === 'add' || !me?.username}>
-            {busy === 'add' ? '…' : 'Add'}
-          </button>
-        </form>
-        {f.inviteResult && (
-          <p className={f.inviteResult.err ? s.error : s.ok} style={{ marginTop: 10 }}>
-            {f.inviteResult.text}
-          </p>
-        )}
-        {msg && <p className={msg.err ? s.error : s.ok} style={{ marginTop: 10 }}>{msg.text}</p>}
+      {outgoing.length > 0 && (
+        <section>
+          <h2 className={s.sectionLabel}>Waiting for them to accept</h2>
+          <ul className={s.listCard}>
+            {outgoing.map((f) => {
+              const p = people[f.addressee];
+              return (
+                <li key={f.id} className={s.person}>
+                  <div className={`${s.avatar} ${s.avatarAlt}`}>{initialOf(p)}</div>
+                  <div className={s.personInfo}>
+                    <div className={s.personName}>{displayName(p)}</div>
+                    <div className={s.personSub}>Request sent</div>
+                  </div>
+                  <button
+                    type="button"
+                    className={s.openPill}
+                    onClick={() => remove(f)}
+                    disabled={busy === f.id}
+                  >
+                    {busy === f.id ? '…' : 'Cancel'}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
-        {outgoing.length > 0 && (
-          <>
-            <p className={s.hint} style={{ marginTop: 14 }}>Waiting for them to accept</p>
-            <ul className={s.list}>
-              {outgoing.map((f) => {
-                const p = people[f.addressee];
-                return (
-                  <li key={f.id} className={s.person}>
-                    <div className={`${s.avatar} ${s.avatarAlt}`}>{initialOf(p)}</div>
-                    <div className={s.personInfo}>
-                      <div className={s.personName}>{displayName(p)}</div>
-                      <div className={s.personSub}>Request sent</div>
-                    </div>
-                    <button
-                      type="button"
-                      className={`${s.secondary} ${s.small}`}
-                      onClick={() => remove(f)}
-                      disabled={busy === f.id}
-                    >
-                      Cancel
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
-        )}
+      <section>
+        <h2 className={s.sectionLabel}>Alerts</h2>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <NotificationToggle showTest />
+          <EmailAlerts />
+        </div>
       </section>
     </Shell>
   );
 }
 
-function Shell({ children }) {
+function Shell({ me, children }) {
   return (
     <div className={s.page}>
       <div className={s.column}>
         <div className={s.topBar}>
-          <Link href="/" className={s.back}>← Halfway</Link>
-          <h1 className={s.logo}>FRIENDS</h1>
+          <Link href="/" className={s.backBtn} aria-label="Back to Halfway">
+            <ArrowLeft />
+          </Link>
+          <div className={s.titleBlock}>
+            <h1 className={s.pageTitle}>Friends</h1>
+            {me?.username && (
+              <p className={s.pageSub}>
+                You&apos;re <span className={s.handle}>@{me.username}</span>
+              </p>
+            )}
+          </div>
           <ThemeToggle />
         </div>
         {children}

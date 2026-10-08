@@ -24,32 +24,50 @@
   color: #fff;
   font: 700 13px/26px var(--font-body), system-ui, sans-serif;
   text-align: center;
-  box-shadow: 0 2px 6px rgba(30, 42, 36, 0.4);
+  box-shadow: 0 2px 6px rgba(23, 23, 26, 0.4);
+}
+
+.pinMe {
+  background: var(--ember);
+  color: var(--on-ember);
+}
+
+.pinFriend {
+  background: var(--ink-solid);
+  color: var(--on-ink);
 }
 
 .dest {
   width: 26px;
   height: 26px;
   border-radius: 7px;
-  background: #1E2A24;
+  background: var(--ember);
   border: 3px solid #fff;
-  box-shadow: 0 3px 8px rgba(30, 42, 36, 0.5);
+  box-shadow: var(--shadow-ember), 0 0 0 10px color-mix(in srgb, var(--ember) 18%, transparent);
 }
 
 .recentre {
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
+  width: max-content;
+  margin: 0 auto;
   bottom: 52px;
-  transform: translateX(-50%);
   z-index: 5;
   min-height: 44px;
   padding: 0 20px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: none;
-  background: #1E2A24;
-  color: #fff;
+  background: var(--ink-solid);
+  color: var(--on-ink);
   font-weight: 700;
   font-size: 14px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-2);
   cursor: pointer;
+  animation: hw-pop var(--t-med) var(--ease-spring) backwards;
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+.recentre:active {
+  transform: scale(0.96);
 }

@@ -1,6 +1,6 @@
 .banner {
   position: fixed;
-  bottom: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
   left: 16px;
   right: 16px;
   max-width: 480px;
@@ -9,10 +9,10 @@
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: var(--ink);
-  color: var(--paper);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px var(--shadow);
+  background: var(--ink-solid);
+  color: var(--on-ink);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
   z-index: 3000;
   animation: slideUp 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -50,10 +50,10 @@
   min-height: 36px;
   font-size: 13px;
   font-weight: 600;
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--ember);
+  color: var(--on-ember);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-pill);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -70,7 +70,7 @@
   justify-content: center;
   background: none;
   border: none;
-  color: var(--paper);
+  color: var(--on-ink);
   opacity: 0.6;
   font-size: 18px;
   cursor: pointer;
@@ -84,5 +84,12 @@
 @media (prefers-reduced-motion: reduce) {
   .banner {
     animation: none;
+  }
+}
+
+/* Clear the home screen's tab bar on phones. */
+@media (max-width: 768px) {
+  .banner {
+    bottom: calc(84px + env(safe-area-inset-bottom));
   }
 }

@@ -1,0 +1,39 @@
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip,
+.chipOn {
+  min-width: 64px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--contour-strong);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chip:hover {
+  border-color: var(--ink);
+}
+
+.chipOn {
+  background: var(--ink-solid);
+  border-color: var(--ink-solid);
+  color: var(--on-ink);
+  animation: opt-pop var(--t-med) var(--ease-spring);
+}
+
+@keyframes opt-pop {
+  0% { transform: scale(0.92); }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}

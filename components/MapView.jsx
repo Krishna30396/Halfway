@@ -20,15 +20,15 @@ import VectorBaseLayer from './VectorBaseLayer';
 const endIcon = (label) =>
   L.divIcon({
     className: '',
-    html: `<div style="width:14px;height:14px;border-radius:50%;background:#FFFFFF;border:2.5px solid #1E2A24;box-shadow:0 1px 3px rgba(30,42,36,.35)" aria-label="${label}"></div>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
+    html: `<div style="width:16px;height:16px;border-radius:50%;background:#FFFFFF;border:4px solid #17171A;box-shadow:0 2px 6px rgba(23,23,26,.35)" aria-label="${label}"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
   });
 
-// THE midpoint — the only magenta in the app.
+// THE midpoint — an ember diamond (ember is the one action colour).
 const midpointIcon = L.divIcon({
   className: '',
-  html: `<div style="width:16px;height:16px;background:#C51162;transform:rotate(45deg);border:2px solid #FFFFFF;box-shadow:0 1px 4px rgba(197,17,98,.5)"></div>`,
+  html: `<div style="width:16px;height:16px;border-radius:3px;background:#F2541B;transform:rotate(45deg);border:2.5px solid #FFFFFF;box-shadow:0 3px 10px rgba(242,84,27,.5)"></div>`,
   iconSize: [16, 16],
   iconAnchor: [8, 8],
 });
@@ -36,17 +36,17 @@ const midpointIcon = L.divIcon({
 // The chosen hub: an ink ring, permanently labelled with the town's name.
 const hubIcon = L.divIcon({
   className: '',
-  html: `<div style="width:13px;height:13px;border-radius:50%;background:#E9ECE4;border:3px solid #1E2A24;box-shadow:0 1px 3px rgba(30,42,36,.4)"></div>`,
-  iconSize: [13, 13],
-  iconAnchor: [6.5, 6.5],
+  html: `<div style="width:14px;height:14px;border-radius:50%;background:#FFFFFF;border:3px solid #F2541B;box-shadow:0 2px 6px rgba(23,23,26,.35)"></div>`,
+  iconSize: [14, 14],
+  iconAnchor: [7, 7],
 });
 
 const placeIcon = (active, category) => {
-  const color = CATEGORY_COLORS[category] || '#6B7A70';
-  const size = active ? 15 : 11;
+  const color = CATEGORY_COLORS[category] || '#74706B';
+  const size = active ? 18 : 12;
   return L.divIcon({
     className: '',
-    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid ${active ? '#1E2A24' : '#FFFFFF'};box-shadow:0 1px 3px rgba(30,42,36,.35)"></div>`,
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:${active ? 3 : 2}px solid ${active ? '#F2541B' : '#FFFFFF'};box-shadow:0 1px 4px rgba(23,23,26,.35)"></div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
@@ -146,7 +146,7 @@ export default function MapView({
           <Polyline
             key={`alt-${i}`}
             positions={r.coords}
-            pathOptions={{ color: '#9FB0A6', weight: 4, opacity: 0.8 }}
+            pathOptions={{ color: '#A8A29C', weight: 4, opacity: 0.75 }}
             eventHandlers={{ click: () => onSelectRoute?.(i) }}
           />
         )
@@ -154,7 +154,7 @@ export default function MapView({
       {routes?.[routeIndex] && (
         <Polyline
           positions={routes[routeIndex].coords}
-          pathOptions={{ color: '#2F6F5E', weight: 5, opacity: 0.95 }}
+          pathOptions={{ color: '#F2541B', weight: 5, opacity: 0.95 }}
         />
       )}
 
@@ -166,11 +166,11 @@ export default function MapView({
           center={[hub.lat, hub.lng]}
           radius={radiusKm * 1000}
           pathOptions={{
-            color: '#6B7A70',
+            color: '#F2541B',
             weight: 1.5,
             dashArray: '6 6',
-            fillColor: '#2F6F5E',
-            fillOpacity: 0.06,
+            fillColor: '#F2541B',
+            fillOpacity: 0.07,
           }}
         />
       )}
@@ -233,7 +233,7 @@ export default function MapView({
             <div className="place-popup-meta">
               <span
                 className="place-popup-dot"
-                style={{ background: CATEGORY_COLORS[openPlace.category] || '#6B7A70' }}
+                style={{ background: CATEGORY_COLORS[openPlace.category] || '#74706B' }}
               />
               {categoryLabel(openPlace.category)}
               {openPlace.cuisine

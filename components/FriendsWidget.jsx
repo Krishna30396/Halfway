@@ -8,24 +8,16 @@ import { displayName, initialOf } from '@/lib/social';
 import NotificationToggle from './NotificationToggle';
 import EmailAlerts from './EmailAlerts';
 import UsernameSetup from './UsernameSetup';
+import { CloseIcon, PeopleIcon, PlusIcon } from './meet/icons';
 import s from './FriendsWidget.module.css';
 
 // Full-screen flows where a floating button would get in the way.
 const HIDDEN_ON = [/^\/friends/, /^\/meet\//, /^\/auth\//, /^\/dev\//];
 
-function PeopleIcon() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  );
-}
-
 // The hidden check runs before any data loading: on /friends the page loads
 // its own copy, and loading here too doubled every query and realtime channel.
+export const OPEN_FRIENDS_EVENT = 'halfway:open-friends';
+
 export default function FriendsWidget() {
   const pathname = usePathname();
   if (HIDDEN_ON.some((re) => re.test(pathname || ''))) return null;
@@ -33,13 +25,28 @@ export default function FriendsWidget() {
 }
 
 function FriendsWidgetPanel({ pathname }) {
-  const router = useRouter();
   const f = useFriends();
-  const [open, setOpen] = useState(false);
+  return <FriendsWidgetView f={f} pathname={pathname} />;
+}
+
+/** The FAB + panel, given useFriends() data (exported so dev previews can pass sample data). */
+export function FriendsWidgetView({ f, pathname, initialOpen = false }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(initialOpen);
   const [addName, setAddName] = useState('');
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(null);
+  // "Opening…" stays until the meetup screen replaces this one.
+  const [opening, setOpening] = useState(null);
   const panelRef = useRef(null);
+  const lastPath = useRef(pathname);
+
+  // On the home screen the tab bar's centre button opens this panel.
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener(OPEN_FRIENDS_EVENT, show);
+    return () => window.removeEventListener(OPEN_FRIENDS_EVENT, show);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -49,7 +56,12 @@ function FriendsWidgetPanel({ pathname }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
-  useEffect(() => setOpen(false), [pathname]);
+  useEffect(() => {
+    if (pathname === lastPath.current) return;
+    lastPath.current = pathname;
+    setOpen(false);
+    setOpening(null);
+  }, [pathname]);
 
   if (!f.configured) return null;
 
@@ -78,11 +90,13 @@ function FriendsWidgetPanel({ pathname }) {
   const meetUp = (id) =>
     act(id, async () => {
       const meetId = await f.startMeetup(id);
+      setOpening(id);
       router.push(`/meet/${meetId}`);
     })();
 
   const signedIn = !!f.user;
   const hasUsername = !!f.me?.username;
+  const onHome = pathname === '/';
 
   return (
     <>
@@ -91,7 +105,7 @@ function FriendsWidgetPanel({ pathname }) {
       {open && (
         <div
           ref={panelRef}
-          className={s.panel}
+          className={`${s.panel} ${onHome ? s.panelHome : ''}`}
           role="dialog"
           aria-modal="true"
           aria-label="Friends"
@@ -100,10 +114,14 @@ function FriendsWidgetPanel({ pathname }) {
           <header className={s.head}>
             <div>
               <h2 className={s.title}>Friends</h2>
-              {hasUsername && <p className={s.sub}>You&apos;re @{f.me.username}</p>}
+              {hasUsername && (
+                <p className={s.sub}>
+                  You&apos;re <span className={s.handle}>@{f.me.username}</span>
+                </p>
+              )}
             </div>
             <button type="button" className={s.close} onClick={() => setOpen(false)} aria-label="Close">
-              ×
+              <CloseIcon width={18} height={18} />
             </button>
           </header>
 
@@ -114,7 +132,11 @@ function FriendsWidgetPanel({ pathname }) {
                 <UsernameSetup onDone={f.reload} />
               </div>
             ) : !f.loaded ? (
-              <p className={s.muted}>Loading…</p>
+              <div className={s.loading}>
+                <span className={s.skel} />
+                <span className={s.skel} />
+                <span className={s.skel} />
+              </div>
             ) : !hasUsername ? (
               <div className={s.empty}>
                 <p className={s.lead}>Pick a username</p>
@@ -128,9 +150,11 @@ function FriendsWidgetPanel({ pathname }) {
                   onClick={act('share', f.shareInvite)}
                   disabled={busy === 'share'}
                 >
-                  <span className={s.inviteIcon} aria-hidden="true">+</span>
-                  <span>
-                    <strong>Invite a friend</strong>
+                  <span className={s.inviteIcon} aria-hidden="true">
+                    <PlusIcon />
+                  </span>
+                  <span className={s.inviteText}>
+                    <strong>{busy === 'share' ? 'Opening share…' : 'Invite a friend'}</strong>
                     Share your link on WhatsApp, SMS or anywhere
                   </span>
                 </button>
@@ -144,8 +168,8 @@ function FriendsWidgetPanel({ pathname }) {
                     autoCapitalize="none"
                     aria-label="Friend's username"
                   />
-                  <button type="submit" className={s.primary} disabled={busy === 'add' || !addName.trim()}>
-                    {busy === 'add' ? '…' : 'Add'}
+                  <button type="submit" className={s.addBtn} disabled={busy === 'add' || !addName.trim()}>
+                    {busy === 'add' ? 'Adding…' : 'Add'}
                   </button>
                 </form>
 
@@ -167,6 +191,7 @@ function FriendsWidgetPanel({ pathname }) {
                             <span className={s.info}>
                               <span className={s.name}>{displayName(f.people[other])}</span>
                               <span className={s.meta}>
+                                <span className={`${s.dot} ${m.status === 'live' ? s.dotLive : ''}`} aria-hidden="true" />
                                 {m.status === 'live'
                                   ? `Live · ${m.dest_name || 'on the way'}`
                                   : m.status === 'requested'
@@ -192,7 +217,7 @@ function FriendsWidgetPanel({ pathname }) {
                     <ul className={s.list}>
                       {f.incoming.map((r) => (
                         <li key={r.id} className={s.item}>
-                          <span className={s.avatar}>{initialOf(f.people[r.requester])}</span>
+                          <span className={`${s.avatar} ${s.avatarInk}`}>{initialOf(f.people[r.requester])}</span>
                           <span className={s.info}>
                             <span className={s.name}>{displayName(f.people[r.requester])}</span>
                             <span className={s.meta}>Wants to be friends</span>
@@ -203,11 +228,11 @@ function FriendsWidgetPanel({ pathname }) {
                             onClick={act(r.id, () => f.accept(r))}
                             disabled={busy === r.id}
                           >
-                            Accept
+                            {busy === r.id ? '…' : 'Accept'}
                           </button>
                           <button
                             type="button"
-                            className={s.secondarySm}
+                            className={s.iconSm}
                             onClick={act(r.id, () => f.remove(r))}
                             disabled={busy === r.id}
                             aria-label="Decline"
@@ -231,9 +256,10 @@ function FriendsWidgetPanel({ pathname }) {
                       {f.friends.map((fr) => {
                         const id = f.otherOf(fr);
                         const existing = f.meetupWith(id);
+                        const pending = busy === id || opening === id;
                         return (
                           <li key={fr.id} className={s.item}>
-                            <span className={s.avatar}>{initialOf(f.people[id])}</span>
+                            <span className={`${s.avatar} ${s.avatarInk}`}>{initialOf(f.people[id])}</span>
                             <span className={s.info}>
                               <span className={s.name}>{displayName(f.people[id])}</span>
                               {f.people[id]?.username && (
@@ -242,11 +268,11 @@ function FriendsWidgetPanel({ pathname }) {
                             </span>
                             <button
                               type="button"
-                              className={s.primarySm}
+                              className={existing ? s.secondarySm : s.primarySm}
                               onClick={() => meetUp(id)}
-                              disabled={busy === id}
+                              disabled={pending}
                             >
-                              {busy === id ? '…' : existing ? 'Open' : 'Meet up'}
+                              {pending ? 'Opening…' : existing ? 'Open' : 'Meet up'}
                             </button>
                           </li>
                         );
@@ -268,22 +294,27 @@ function FriendsWidgetPanel({ pathname }) {
 
           {signedIn && hasUsername && (
             <footer className={s.foot}>
-              <Link href="/friends">Manage friends & profile →</Link>
+              <Link href="/friends">Manage friends &amp; profile →</Link>
             </footer>
           )}
         </div>
       )}
 
+      {/* Home has the tab bar, so the round button only appears there as the close ✕. */}
+      {(!onHome || open) && (
       <button
         type="button"
-        className={s.fab}
+        className={`${s.fab} ${open ? s.fabOpen : ''} ${onHome ? s.fabHome : ''}`}
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? 'Close friends' : 'Friends'}
         aria-expanded={open}
       >
-        {open ? <span className={s.fabX}>×</span> : <PeopleIcon />}
+        <span key={open ? "x" : "people"} className={open ? s.fabIconX : s.fabIcon} aria-hidden="true">
+          {open ? <CloseIcon width={24} height={24} /> : <PeopleIcon />}
+        </span>
         {!open && f.attentionCount > 0 && <span className={s.badge}>{f.attentionCount}</span>}
       </button>
+      )}
     </>
   );
 }

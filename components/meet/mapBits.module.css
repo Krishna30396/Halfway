@@ -1,0 +1,26 @@
+/* ETA bubbles pinned above people on the meetup map (Leaflet tooltips). */
+:global(.leaflet-container) .eta {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--r-pill);
+  font: 700 12px/1.35 var(--font-body), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: var(--shadow-1);
+}
+
+:global(.leaflet-container) .eta::before {
+  display: none;
+}
+
+:global(.leaflet-container) .etaMe {
+  background: var(--ember);
+  color: var(--on-ember);
+  box-shadow: var(--shadow-ember);
+}
+
+:global(.leaflet-container) .etaFriend {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--contour);
+}

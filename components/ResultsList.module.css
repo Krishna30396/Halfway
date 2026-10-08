@@ -2,11 +2,14 @@
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .state,
 .stateError {
-  padding: 18px 12px;
+  padding: 22px 12px;
   font-size: 14px;
   color: var(--muted);
   text-align: center;
@@ -18,16 +21,77 @@
 
 .widen {
   display: block;
-  margin: 10px auto 0;
-  padding: 7px 14px;
-  font-size: 13px;
-  border: 1px solid var(--ink);
-  border-radius: 6px;
-  background: none;
+  margin: 12px auto 0;
+  padding: 0 18px;
+  min-height: 44px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border: 1px solid var(--contour-strong);
+  border-radius: var(--r-pill);
+  background: var(--panel);
   color: var(--ink);
   cursor: pointer;
 }
 
 .widen:hover {
-  background: var(--panel);
+  border-color: var(--ember);
+  color: var(--ember);
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  animation: sk-pulse 1.2s ease-in-out infinite;
+}
+
+.skThumb {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-sm);
+  background: var(--contour);
+  flex-shrink: 0;
+}
+
+.skLines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skLines span {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--contour);
+}
+
+.skLines span:first-child {
+  width: 70%;
+}
+
+.skLines span:last-child {
+  width: 45%;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+@keyframes sk-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }

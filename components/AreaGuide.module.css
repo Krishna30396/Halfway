@@ -14,10 +14,11 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  min-height: 36px;
+  min-height: 40px;
   font-size: 12.5px;
-  border-radius: 999px;
-  border: 1px solid var(--contour);
+  font-weight: 600;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--contour-strong);
   background: var(--panel);
   color: var(--ink);
   cursor: pointer;
@@ -25,9 +26,9 @@
 }
 
 .statOn {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--paper);
+  border-color: var(--ink-solid);
+  background: var(--ink-solid);
+  color: var(--on-ink);
 }
 
 .statDot {
@@ -38,8 +39,7 @@
 }
 
 .statCount {
-  font-family: var(--font-mono);
-  font-weight: 600;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
@@ -51,8 +51,11 @@
 .suggestions {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 10px;
+  gap: 0;
+  margin-top: 12px;
+  border-radius: var(--r-md);
+  background: var(--hw-card, var(--surface-2));
+  overflow: hidden;
 }
 
 .tip {
@@ -76,7 +79,7 @@
 }
 
 .tip:hover {
-  background: var(--panel);
+  background: var(--ember-soft);
 }
 
 .tipDot {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { placeholderFor } from '@/lib/placeholders';
+import { CATEGORY_COLORS } from '@/lib/categories';
 
 function buildPhotoUrl(place) {
   if (place.imageTag?.startsWith('http')) return place.imageTag;
@@ -40,6 +41,8 @@ export default function PlaceImage({ place, size = 56, className, style }) {
   }, [place.imageTag, place.wikimediaCommons, place.wikidata]);
 
   const placeholder = placeholderFor(place.category);
+  // A wash of the category colour over the surface works in light and dark.
+  const tint = `color-mix(in srgb, ${CATEGORY_COLORS[place.category] || '#74706B'} 16%, var(--surface-2))`;
 
   if (failed || (!src && !wdLoading)) {
     return (
@@ -48,8 +51,8 @@ export default function PlaceImage({ place, size = 56, className, style }) {
         style={{
           width: size,
           height: size,
-          borderRadius: 8,
-          background: placeholder.bg,
+          borderRadius: 12,
+          background: tint,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -71,7 +74,7 @@ export default function PlaceImage({ place, size = 56, className, style }) {
         style={{
           width: size,
           height: size,
-          borderRadius: 8,
+          borderRadius: 12,
           background: 'var(--contour)',
           flexShrink: 0,
           ...style,
@@ -91,7 +94,7 @@ export default function PlaceImage({ place, size = 56, className, style }) {
       style={{
         width: size,
         height: size,
-        borderRadius: 8,
+        borderRadius: 12,
         objectFit: 'cover',
         flexShrink: 0,
         background: 'var(--contour)',

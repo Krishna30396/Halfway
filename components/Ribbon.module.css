@@ -12,33 +12,37 @@
   left: 0;
   right: 0;
   top: 50%;
-  height: 1px;
-  background: var(--contour);
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: repeating-linear-gradient(90deg, var(--contour-strong) 0 6px, transparent 6px 10px);
 }
 
 .end {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 9px;
-  height: 9px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  border: 1.5px solid var(--ink);
-  background: var(--paper);
+  border: 2.5px solid var(--ink);
+  background: var(--panel);
 }
 
 .diamond,
 .diamondIn {
   position: absolute;
   top: 50%;
-  width: 11px;
-  height: 11px;
-  background: var(--marker);
+  width: 13px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--ember);
+  box-shadow: 0 0 0 3px var(--panel), 0 0 0 5px var(--ember-line);
   transform: translate(-50%, -50%) rotate(45deg);
 }
 
 .diamondIn {
-  transition: left 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: left 600ms var(--ease-spring);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -66,8 +70,8 @@
 .distances {
   display: flex;
   justify-content: space-between;
-  font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 800;
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
 }
@@ -75,7 +79,6 @@
 .drift {
   margin-top: 6px;
   text-align: center;
-  font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--muted);
 }

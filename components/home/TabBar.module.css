@@ -1,0 +1,116 @@
+.bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 150;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    align-items: stretch;
+    height: var(--hw-tabbar-h, 72px);
+    padding: 0 6px env(safe-area-inset-bottom);
+    background: var(--panel);
+    border-top: 1px solid var(--contour);
+  }
+}
+
+.tab,
+.tabOn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 44px;
+  padding: 10px 0 4px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  text-decoration: none;
+  cursor: pointer;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--t-med) var(--ease-out);
+}
+
+/* Active indicator: a short ember bar that grows in above the icon. */
+.tab::before,
+.tabOn::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: 18px;
+  height: 3px;
+  margin-left: -9px;
+  border-radius: 3px;
+  background: var(--ember);
+  transform: scaleX(0);
+  transition: transform var(--t-med) var(--ease-spring);
+}
+
+.tabOn {
+  color: var(--ember);
+}
+
+.tabOn::before {
+  transform: scaleX(1);
+}
+
+.icon {
+  display: inline-flex;
+  transition: transform var(--t-med) var(--ease-spring);
+}
+
+.tabOn .icon {
+  transform: translateY(-1px) scale(1.06);
+}
+
+.tab:active .icon,
+.tabOn:active .icon {
+  transform: scale(0.9);
+}
+
+.label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.centreSlot {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.centre {
+  position: absolute;
+  top: -20px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ember);
+  color: var(--on-ember);
+  border: 4px solid var(--panel);
+  box-shadow: var(--shadow-ember);
+  transition: transform var(--t-med) var(--ease-spring), box-shadow var(--t-med) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.centre:hover {
+  transform: translateY(-2px);
+}
+
+.centre:active {
+  transform: translateY(-3px) scale(0.94);
+  box-shadow: 0 10px 24px rgba(242, 84, 27, 0.45);
+}

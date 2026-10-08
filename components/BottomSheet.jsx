@@ -1,84 +1,125 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styles from './BottomSheet.module.css';
 
-const SNAP_PEEK = 0.18;
-const SNAP_HALF = 0.52;
-const SNAP_FULL = 0.92;
-const SNAPS = [SNAP_PEEK, SNAP_HALF, SNAP_FULL];
+const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
-function closest(value) {
-  let best = SNAPS[0];
-  for (const s of SNAPS) {
-    if (Math.abs(s - value) < Math.abs(best - value)) best = s;
-  }
-  return best;
-}
-
-export default function BottomSheet({ children, hasResults }) {
+/**
+ * Phone bottom sheet over the full-screen map. Three snap points:
+ *   peek — just the header + footer (the map gets the screen)
+ *   half — about half the space, for browsing results next to the map
+ *   tall — the search form (leaves the top of the map and the wordmark visible)
+ * Drag from the handle/header. `snap` + `snapKey` let the page ask for a
+ * snap point (e.g. results → half); the user's drags win until it asks again.
+ */
+export default function BottomSheet({ header, footer, children, snap: wanted = 'tall', snapKey }) {
   const sheetRef = useRef(null);
+  const headRef = useRef(null);
+  const footRef = useRef(null);
   const dragRef = useRef(null);
-  const [snap, setSnap] = useState(SNAP_PEEK);
+  const [snap, setSnap] = useState(wanted);
+  const [heights, setHeights] = useState(null);
+  const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
-    if (hasResults && snap === SNAP_PEEK) setSnap(SNAP_HALF);
-  }, [hasResults]);
+    setSnap(wanted);
+  }, [wanted, snapKey]);
+
+  const measure = useCallback(() => {
+    const sheet = sheetRef.current;
+    if (!sheet || getComputedStyle(sheet).display === 'none') return;
+    const vh = window.innerHeight;
+    // Space above the tab bar: the sheet's bottom edge sits on top of it.
+    const avail = sheet.getBoundingClientRect().bottom;
+    const head = (headRef.current?.offsetHeight || 0) + (footRef.current?.offsetHeight || 0);
+    const peek = Math.max(96, head + 4);
+    const tall = Math.max(peek + 120, avail - Math.min(0.22 * vh, 190));
+    const half = Math.max(peek + 60, Math.min(tall - 40, avail * 0.5));
+    setHeights({ peek, half, tall });
+  }, []);
+
+  useIsoLayoutEffect(() => {
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [measure]);
+
+  // Header/footer content changes (results view, CTA hidden) shift the peek height.
+  useEffect(() => {
+    measure();
+  }, [measure, snapKey, !!footer]);
 
   const onPointerDown = useCallback((e) => {
-    if (e.target.closest('input, button, a, [role="listbox"], [role="combobox"]')) return;
+    if (e.target.closest('input, button, a')) return;
     const sheet = sheetRef.current;
     if (!sheet) return;
-    e.preventDefault();
-    sheet.setPointerCapture(e.pointerId);
-    const vh = window.innerHeight;
+    e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = {
       startY: e.clientY,
-      startFrac: 1 - sheet.getBoundingClientRect().top / vh,
+      startH: sheet.getBoundingClientRect().height,
+      moved: false,
     };
+    setDragging(true);
   }, []);
 
   const onPointerMove = useCallback((e) => {
-    if (!dragRef.current) return;
-    const vh = window.innerHeight;
-    const dy = dragRef.current.startY - e.clientY;
-    const frac = Math.max(0.1, Math.min(0.95, dragRef.current.startFrac + dy / vh));
+    const d = dragRef.current;
+    if (!d) return;
+    const dy = d.startY - e.clientY;
+    if (Math.abs(dy) > 4) d.moved = true;
     const sheet = sheetRef.current;
-    if (sheet) sheet.style.height = `${frac * 100}dvh`;
+    const max = sheet.getBoundingClientRect().bottom - 8;
+    const h = Math.max(80, Math.min(max, d.startH + dy));
+    sheet.style.height = `${h}px`;
   }, []);
 
-  const onPointerUp = useCallback((e) => {
-    if (!dragRef.current) return;
-    const vh = window.innerHeight;
-    const sheet = sheetRef.current;
-    if (!sheet) { dragRef.current = null; return; }
-    const currentFrac = 1 - sheet.getBoundingClientRect().top / vh;
-    const target = closest(currentFrac);
-    sheet.style.height = '';
-    setSnap(target);
+  const onPointerUp = useCallback(() => {
+    const d = dragRef.current;
     dragRef.current = null;
-  }, []);
-
-  const snapClass =
-    snap >= SNAP_FULL ? styles.sheetFull :
-    snap >= SNAP_HALF ? styles.sheetHalf :
-    styles.sheetPeek;
+    setDragging(false);
+    const sheet = sheetRef.current;
+    if (!d || !sheet || !heights) return;
+    const h = sheet.getBoundingClientRect().height;
+    sheet.style.height = '';
+    if (!d.moved) {
+      // A tap on the handle toggles between the form and the map.
+      setSnap((s) => (s === 'peek' ? wanted === 'peek' ? 'tall' : wanted : 'peek'));
+      return;
+    }
+    const keys = ['peek', 'half', 'tall'];
+    let best = keys[0];
+    for (const k of keys) if (Math.abs(heights[k] - h) < Math.abs(heights[best] - h)) best = k;
+    setSnap(best);
+  }, [heights, wanted]);
 
   return (
-    <div
+    <section
       ref={sheetRef}
-      className={`${styles.sheet} ${snapClass}`}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      style={{ touchAction: 'none' }}
+      className={`${styles.sheet} ${dragging ? styles.dragging : ''}`}
+      style={heights ? { height: heights[snap] } : undefined}
+      data-snap={snap}
+      aria-label="Search"
     >
-      <div className={styles.handle} aria-hidden="true">
-        <div className={styles.handleBar} />
+      <div
+        ref={headRef}
+        className={styles.grip}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
+        <div className={styles.handle} aria-hidden="true">
+          <div className={styles.handleBar} />
+        </div>
+        {header}
       </div>
-      <div className={styles.content}>
-        {children}
-      </div>
-    </div>
+      <div className={styles.content}>{children}</div>
+      {footer && (
+        <div ref={footRef} className={styles.footer}>
+          {footer}
+        </div>
+      )}
+    </section>
   );
 }

@@ -1,19 +1,29 @@
 .toggle {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: none;
+  background: var(--panel);
   border: 1px solid var(--contour);
-  border-radius: 8px;
+  border-radius: 50%;
   cursor: pointer;
-  font-size: 16px;
   color: var(--ink);
   flex-shrink: 0;
+  box-shadow: var(--shadow-1);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .toggle:hover {
-  background: var(--panel);
-  border-color: var(--ink);
+  border-color: var(--contour-strong);
+}
+
+.icon {
+  display: inline-flex;
+  animation: theme-spin var(--t-slow) var(--ease-spring);
+}
+
+@keyframes theme-spin {
+  from { opacity: 0; transform: rotate(-60deg) scale(0.7); }
+  to { opacity: 1; transform: none; }
 }

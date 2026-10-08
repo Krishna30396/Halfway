@@ -5,6 +5,7 @@ import { Map as MapLibreMap, Marker, setWorkerUrl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MAP_STYLE, add3dBuildings, useThemeMode } from '@/lib/mapStyle';
 import { glideMarker } from '@/lib/liveTracking';
+import { readTokens } from './meet/tokens';
 import s from './NavigationMap.module.css';
 
 setWorkerUrl('/vendor/maplibre-gl-worker.mjs');
@@ -18,17 +19,17 @@ const line = (coords) => ({
   geometry: { type: 'LineString', coordinates: (coords || []).map(([lat, lng]) => [lng, lat]) },
 });
 
-function chevronEl(color) {
+// Me = ember, friend = ink; CSS variables keep the markers in step with the theme.
+function chevronEl() {
   const el = document.createElement('div');
   el.className = s.chevron;
-  el.innerHTML = `<svg viewBox="0 0 40 40" width="44" height="44"><circle cx="20" cy="20" r="18" fill="${color}" stroke="#fff" stroke-width="3"/><path d="M20 9 L29 29 L20 24 L11 29 Z" fill="#fff"/></svg>`;
+  el.innerHTML = `<svg viewBox="0 0 40 40" width="44" height="44"><circle cx="20" cy="20" r="18" style="fill:var(--ember)" stroke="#fff" stroke-width="3"/><path d="M20 9 L29 29 L20 24 L11 29 Z" style="fill:var(--on-ember)"/></svg>`;
   return el;
 }
 
-function pinEl(letter, color) {
+function pinEl(letter, isMe) {
   const el = document.createElement('div');
-  el.className = s.pin;
-  el.style.background = color;
+  el.className = `${s.pin} ${isMe ? s.pinMe : s.pinFriend}`;
   el.textContent = letter;
   return el;
 }
@@ -48,9 +49,9 @@ export default function NavigationMap({
   overview = false,
   bearing = 0,
   route,
-  routeColor = '#2F6F5E',
+  routeColor: routeColorProp,
   altRoute,
-  altRouteColor = '#6E4F8C',
+  altRouteColor: altRouteColorProp,
   me,
   meLetter = 'Y',
   friend,
@@ -68,6 +69,10 @@ export default function NavigationMap({
   const mode = useThemeMode();
   const modeRef = useRef(mode);
   modeRef.current = mode;
+  // WebGL paint can't read CSS variables: resolve ember / ink for this theme.
+  const tokens = typeof window === 'undefined' ? null : readTokens(mode);
+  const routeColor = routeColorProp || tokens?.ember || '#F2541B';
+  const altRouteColor = altRouteColorProp || tokens?.ink || '#17171A';
 
   useEffect(() => {
     const start = focus || dest;
@@ -117,7 +122,12 @@ export default function NavigationMap({
     map.on('rotatestart', pause);
     map.on('pitchstart', pause);
 
+    // Follow the container as the meetup sheet resizes, not just the window.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => map.resize()) : null;
+    ro?.observe(containerRef.current);
+
     return () => {
+      ro?.disconnect();
       Object.values(glide.current).forEach((g) => cancelAnimationFrame(g.raf));
       Object.values(markers.current).forEach((m) => m.remove());
       markers.current = {};
@@ -190,8 +200,8 @@ export default function NavigationMap({
       }
       if (rotation != null) m.setRotation(rotation);
     };
-    place('me', me, () => (overview ? pinEl(meLetter, '#2F6F5E') : chevronEl('#2F6F5E')), overview ? null : bearing);
-    place('friend', friend, () => pinEl(friendLetter, '#6E4F8C'), null);
+    place('me', me, () => (overview ? pinEl(meLetter, true) : chevronEl()), overview ? null : bearing);
+    place('friend', friend, () => pinEl(friendLetter, false), null);
     place('dest', overview ? null : dest, destEl, null);
   }, [me, friend, dest, bearing, overview, meLetter, friendLetter]);
 

@@ -1,0 +1,53 @@
+.track {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 4px;
+  border-radius: var(--r-sm);
+  background: var(--hw-track, var(--paper));
+}
+
+.thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 3);
+  border-radius: calc(var(--r-sm) - 3px);
+  background: var(--hw-thumb, var(--panel));
+  box-shadow: var(--shadow-1);
+  transition: transform var(--t-slow) var(--ease-spring);
+  will-change: transform;
+}
+
+.opt,
+.optOn {
+  position: relative;
+  z-index: 1;
+  min-height: 44px;
+  padding: 0 6px;
+  border: none;
+  background: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: calc(var(--r-sm) - 3px);
+  transition: color var(--t-med) var(--ease-out);
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.opt:hover {
+  color: var(--ink);
+}
+
+.optOn {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.opt:active,
+.optOn:active {
+  transform: scale(0.97);
+}

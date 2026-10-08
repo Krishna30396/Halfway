@@ -21,12 +21,13 @@
 }
 
 .avatar {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  background: var(--route);
-  color: #fff;
-  border: none;
+  background: var(--ember);
+  color: var(--on-ember);
+  border: 3px solid var(--panel);
+  box-shadow: var(--shadow-1);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
@@ -42,8 +43,8 @@
   margin-top: 6px;
   background: var(--panel);
   border: 1px solid var(--contour);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px var(--shadow);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
   min-width: 200px;
   overflow: hidden;
   z-index: 1500;
@@ -70,5 +71,5 @@
 }
 
 .menuItem:hover {
-  background: var(--paper);
+  background: var(--surface-2);
 }

@@ -6,25 +6,15 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 12.5px;
+  font-weight: 500;
   color: var(--muted);
   margin-bottom: 6px;
 }
 
+/* The A/B ring is shown on the map; in the form the label says it. */
 .marker {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 2px solid var(--ink);
-  background: transparent;
-  flex-shrink: 0;
-}
-
-.marker[data-kind='b'] {
-  background: var(--ink);
+  display: none;
 }
 
 .inputWrap {
@@ -33,7 +23,7 @@
 
 .clear {
   position: absolute;
-  right: 6px;
+  right: 2px;
   top: 50%;
   transform: translateY(-50%);
   width: 44px;
@@ -42,7 +32,7 @@
   border-radius: 50%;
   background: none;
   color: var(--muted);
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1;
   cursor: pointer;
   display: flex;
@@ -51,29 +41,30 @@
 }
 
 .clear:hover {
-  background: var(--paper);
   color: var(--ink);
 }
 
 .input {
   width: 100%;
-  padding: 12px 44px 12px 12px;
-  min-height: 44px;
+  min-height: 48px;
+  padding: 12px 44px 12px 14px;
   font-size: 16px;
   color: var(--ink);
   background: var(--panel);
-  border: 1px solid var(--contour);
-  border-radius: 8px;
+  border: 1px solid var(--contour-strong);
+  border-radius: var(--r-sm);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
 }
 
 .input::placeholder {
   color: var(--muted);
-  opacity: 0.7;
+  font-size: 14.5px;
 }
 
 .input:focus {
   outline: none;
-  border-color: var(--ink);
+  border-color: var(--ember);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ember) 18%, transparent);
 }
 
 .dropdown {
@@ -82,21 +73,27 @@
   top: 100%;
   left: 0;
   right: 0;
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   padding: 4px;
   list-style: none;
   background: var(--panel);
   border: 1px solid var(--contour);
-  border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(30, 42, 36, 0.12);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-2);
   max-height: 260px;
   overflow-y: auto;
+  animation: dropdown-in var(--t-med) var(--ease-out);
+}
+
+@keyframes dropdown-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
 }
 
 .item,
 .itemActive {
   padding: 12px 10px;
-  border-radius: 6px;
+  border-radius: var(--r-xs);
   cursor: pointer;
   font-size: 14px;
   line-height: 1.35;
@@ -106,7 +103,7 @@
 }
 
 .itemActive {
-  background: var(--paper);
+  background: var(--ember-soft);
 }
 
 .kind {
@@ -129,14 +126,7 @@
 }
 
 @media (max-width: 768px) {
-  .input {
-    font-size: 16px;
-    padding: 14px 44px 14px 14px;
-    border-radius: 10px;
-  }
-
   .dropdown {
     max-height: 200px;
-    border-radius: 10px;
   }
 }

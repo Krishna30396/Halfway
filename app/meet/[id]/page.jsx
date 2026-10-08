@@ -7,7 +7,6 @@ import { useParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import NotificationToggle from '@/components/NotificationToggle';
 import ThemeToggle from '@/components/ThemeToggle';
-import CategoryChips from '@/components/CategoryChips';
 import LocationInput from '@/components/LocationInput';
 import { getSupabase } from '@/lib/supabase';
 import { isNativeApp, getBackgroundGeolocation, nativeUpsert } from '@/lib/native';
@@ -19,8 +18,21 @@ import { sendGapMs, withSpeed, fmtSpeed } from '@/lib/liveTracking';
 import { rememberPosition } from '@/lib/localPlaces';
 import NavBanner from '@/components/NavBanner';
 import FriendSpot from '@/components/FriendSpot';
-import { CATEGORIES, CATEGORY_COLORS } from '@/lib/categories';
+import FairSpots from '@/components/meet/FairSpots';
+import {
+  MeetHeader,
+  StatusPill,
+  MapControls,
+  DestCard,
+  PeopleList,
+  HalfwayRow,
+  meetStatusPill,
+  etaTags,
+} from '@/components/meet/MeetChrome';
+import { useSheetLayout } from '@/components/meet/useSheetLayout';
+import { ArrowLeft, PinIcon } from '@/components/meet/icons';
 import s from '@/components/Social.module.css';
+import m from '@/components/meet/Meet.module.css';
 
 const MeetMap = dynamic(() => import('@/components/MeetMap'), {
   ssr: false,
@@ -36,8 +48,6 @@ const HEARTBEAT_MS = 30000;
 // Worse than this (metres) is a Wi-Fi / internet guess, not a GPS fix.
 const ROUGH_M = 200;
 const MIN_MOVE_KM = 0.01;
-
-const categoryLabel = (id) => CATEGORIES.find((c) => c.id === id)?.label || '';
 
 function fmtAgo(iso, now) {
   const sec = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
@@ -74,6 +84,7 @@ export default function MeetPage() {
   const [navMode, setNavMode] = useState(false);
   const [pov, setPov] = useState('me');
 
+  const layout = useSheetLayout();
   const myPosRef = useRef(null);
   // True after "type where you are": GPS mustn't move the typed spot.
   const manualRef = useRef(false);
@@ -565,24 +576,25 @@ export default function MeetPage() {
     notify('meet_ended', id);
   });
 
+
   // ---- Render -------------------------------------------------------------------
   if (!supabase) {
     return <Centered title="Meetups aren't set up yet" text="Accounts need to be configured first." />;
   }
   if (authLoading || (user && !meetup && !loadError)) {
-    return <Centered title="Loading meetup…" />;
+    return <Centered title="Loading meetup…" loading />;
   }
   if (!user) {
     return (
       <Centered title="Open Halfway on the phone you set up" text="Meetups are private to the two people in them. If this is a new phone, pick a username first and ask your friend to send a new meetup.">
-        <Link href="/friends" className={s.primary}>Go to Friends</Link>
+        <Link href="/friends" className={m.btn}>Go to Friends</Link>
       </Centered>
     );
   }
   if (loadError) {
     return (
       <Centered title="Can't open this meetup" text={loadError}>
-        <Link href="/friends" className={s.secondary}>Back to friends</Link>
+        <Link href="/friends" className={m.btnGhost}>Back to friends</Link>
       </Centered>
     );
   }
@@ -597,8 +609,8 @@ export default function MeetPage() {
       >
         {actionError && <p className={s.error}>{actionError}</p>}
         <NotificationToggle />
-        <button type="button" className={s.danger} onClick={cancelRequest} disabled={busy}>
-          Cancel request
+        <button type="button" className={m.btnDanger} onClick={cancelRequest} disabled={busy}>
+          {busy ? 'Cancelling…' : 'Cancel request'}
         </button>
       </Centered>
     ) : (
@@ -608,11 +620,11 @@ export default function MeetPage() {
         text="If you accept, you'll both share your live location for this meetup only, and pick a place halfway together."
       >
         {actionError && <p className={s.error}>{actionError}</p>}
-        <div className={s.actions} style={{ width: '100%' }}>
-          <button type="button" className={s.primary} onClick={acceptRequest} disabled={busy}>
-            Accept & share location
+        <div className={m.row} style={{ marginTop: 0 }}>
+          <button type="button" className={m.btn} onClick={acceptRequest} disabled={busy}>
+            {busy ? 'Opening…' : 'Accept & share location'}
           </button>
-          <button type="button" className={s.secondary} onClick={declineRequest} disabled={busy}>
+          <button type="button" className={m.btnGhost} onClick={declineRequest} disabled={busy} style={{ flex: '0 0 auto' }}>
             Decline
           </button>
         </div>
@@ -631,7 +643,7 @@ export default function MeetPage() {
           : 'This meetup has ended. Location sharing is off.';
     return (
       <Centered title={status === 'ended' ? 'Meetup ended' : 'No meetup'} text={text}>
-        <Link href="/friends" className={s.primary}>Back to friends</Link>
+        <Link href="/friends" className={m.btn}>Back to friends</Link>
       </Centered>
     );
   }
@@ -642,28 +654,121 @@ export default function MeetPage() {
     dest && friendLoc ? haversine([friendLoc.lat, friendLoc.lng], [dest.lat, dest.lng]) : null;
   const friendArrived = friendDistKm != null && friendDistKm <= ARRIVE_KM;
   const iArrived = myDistKm != null && myDistKm <= ARRIVE_KM;
-  const fitKey = [!!myPos, !!friendLoc, dest?.lat, proposal?.lat, halfway?.point?.[0], recenter, navMode].join('|');
+  const fitKey = [!!myPos, !!friendLoc, dest?.lat, proposal?.lat, halfway?.point?.[0], recenter, navMode, layout.wide].join('|');
 
   const navigating = navMode && status === 'live' && !!dest;
   const viewing = pov === 'friend' && friendLoc ? 'friend' : 'me';
+  const meProfile = profiles[user.id];
+  const meLetter = initialOf(meProfile);
+  const friendLetter = initialOf(friend);
+  const friendEta = friendNav.progress?.etaMin ?? friendLoc?.eta_min ?? null;
+  const friendAgo = friendLoc?.updated_at ? fmtAgo(friendLoc.updated_at, now) : null;
+
+  const pill = meetStatusPill({ status, friendName, friendLoc, friendArrived, friendEta, friendDistKm, friendNav, friendAgo });
+  const { meTag, friendTag } = etaTags({ status, myPos, friendLoc, center, iArrived, friendArrived, myEtaMin, friendEta });
+  const alert = proposal && proposal.by !== user.id ? `${friendName} suggested ${proposal.name}` : null;
+  const shareHint = native
+    ? 'Location keeps sharing in the background — you’ll see a Halfway notification while it’s on.'
+    : 'Keep Halfway open on screen while you travel — phones pause location sharing for web apps running in the background.';
+  const startNav = () => {
+    setPov('me');
+    setNavMode(true);
+  };
 
   return (
-    <div className={`${s.meet} ${navigating ? s.meetNav : ''}`}>
-      <aside className={s.meetPanel}>
-        <div className={s.topBar}>
-          <Link href="/friends" className={s.back}>← Friends</Link>
-          <span className={`${s.pill} ${status === 'live' ? s.pillLive : ''}`}>
-            {status === 'live' ? 'Live' : 'Picking a place'}
-          </span>
-          <ThemeToggle />
-        </div>
+    <div ref={layout.rootRef} className={`${m.meet} ${navigating ? m.navigating : ''}`}>
+      <div className={m.mapLayer}>
+        {navigating ? (
+          <NavigationMap
+            focus={myPos}
+            overview={viewing === 'friend'}
+            bearing={myNav.progress?.bearing ?? 0}
+            route={myNav.nav?.coords}
+            me={myPos}
+            meLetter={meLetter}
+            friend={friendLoc}
+            friendLetter={friendLetter}
+            dest={dest}
+          />
+        ) : (
+          <MeetMap
+            me={myPos}
+            meLetter={meLetter}
+            friend={friendLoc}
+            friendLetter={friendLetter}
+            friendName={friendName}
+            midpoint={status === 'planning' ? halfway?.point : null}
+            places={status === 'planning' ? places : null}
+            selectedPlaceId={selectedPlaceId}
+            onPlaceSelect={setSelectedPlaceId}
+            proposal={proposal}
+            dest={dest}
+            route={status === 'live' ? myNav.nav?.coords : null}
+            altRoute={status === 'live' ? friendNav.nav?.coords : null}
+            droppedPin={droppedPin}
+            onMapClick={status === 'planning' && !proposal ? setDroppedPin : null}
+            fitKey={fitKey}
+            panTarget={selectedPlace}
+            insets={layout.insets}
+            meTag={meTag}
+            friendTag={friendTag}
+            link={
+              status === 'planning' && halfway
+                ? [myPos && [myPos.lat, myPos.lng], halfway.point, friendLoc && [friendLoc.lat, friendLoc.lng]]
+                : null
+            }
+          />
+        )}
+      </div>
 
-        <h1 className={s.meetTitle}>
-          {status === 'live' ? `Meeting ${friendName}` : `Plan with ${friendName}`}
-        </h1>
+      <MeetHeader
+        me={meProfile}
+        letter={meLetter}
+        alert={alert}
+        menu={
+          <>
+            <NotificationToggle />
+            <p className={m.hint}>{shareHint}</p>
+          </>
+        }
+      >
+        {navigating ? (
+          <div className={m.bannerSlot}>
+            {viewing === 'friend' ? (
+              <FriendSpot name={friendName} me={myPos} friend={friendLoc} now={now} />
+            ) : (
+              <NavBanner who="You" isMe pos={myPos} live={myNav} arrived={iArrived} />
+            )}
+          </div>
+        ) : (
+          <StatusPill {...pill} />
+        )}
+      </MeetHeader>
+
+      <MapControls
+        navigating={navigating}
+        onFit={() => setRecenter((n) => n + 1)}
+        onNavigate={status === 'live' && dest ? startNav : null}
+        onExitNav={() => setNavMode(false)}
+        pill={
+          navigating && (
+            <button
+              type="button"
+              className={m.ctrlPill}
+              onClick={() => setPov(viewing === 'me' && friendLoc ? 'friend' : 'me')}
+              disabled={!friendLoc}
+            >
+              {viewing === 'me' ? `See ${friendName}` : 'Back to my route'}
+            </button>
+          )
+        }
+      />
+
+      <aside ref={layout.sheetRef} className={m.sheet} aria-label={status === 'live' ? 'Meetup' : 'Pick a place'}>
+        <div className={m.handle} aria-hidden="true" />
 
         {!geoError && manual && sharing && (
-          <p className={s.muted}>
+          <p className={m.hint}>
             Using the place you typed.{' '}
             <button type="button" className={s.linkBtn} onClick={retryLocation}>
               Use my GPS again
@@ -680,12 +785,12 @@ export default function MeetPage() {
                     : 'Allow precise location, turn on GPS, or step near a window.'
                 } Or type where you are.`}
             </p>
-            <div className={s.actions}>
-              <button type="button" className={s.secondary} onClick={retryLocation}>
+            <div className={m.row}>
+              <button type="button" className={m.btnGhost} onClick={retryLocation}>
                 Try again
               </button>
               {native && (
-                <button type="button" className={s.secondary} onClick={openLocationSettings}>
+                <button type="button" className={m.btnGhost} onClick={openLocationSettings}>
                   Open settings
                 </button>
               )}
@@ -695,7 +800,11 @@ export default function MeetPage() {
             </div>
           </section>
         )}
-        {actionError && <p className={s.error}>{actionError}</p>}
+        {actionError && (
+          <p className={s.error} role="alert">
+            {actionError}
+          </p>
+        )}
 
         {status === 'planning' && (
           <>
@@ -707,13 +816,11 @@ export default function MeetPage() {
             )}
 
             {proposal && (
-              <section className={`${s.card} ${s.proposal}`}>
-                <h2 className={s.cardTitle}>
-                  {proposal.by === user.id ? 'You suggested' : `${friendName} suggested`}
-                </h2>
-                <p className={s.proposalName}>{proposal.name}</p>
+              <section className={m.proposal}>
+                <span className={m.kicker}>{proposal.by === user.id ? 'You suggested' : `${friendName} suggested`}</span>
+                <p className={m.proposalName}>{proposal.name}</p>
                 {myPos && (
-                  <p className={s.hint}>
+                  <p className={m.proposalMeta}>
                     {fmtKm(haversine([myPos.lat, myPos.lng], [proposal.lat, proposal.lng]))} from you
                     {friendLoc &&
                       ` · ${fmtKm(haversine([friendLoc.lat, friendLoc.lng], [proposal.lat, proposal.lng]))} from ${friendName}`}
@@ -721,19 +828,19 @@ export default function MeetPage() {
                 )}
                 {proposal.by === user.id ? (
                   <>
-                    <p className={s.hint}>Waiting for {friendName} to accept…</p>
-                    <div className={s.actions}>
-                      <button type="button" className={s.secondary} onClick={withdrawProposal} disabled={busy}>
-                        Withdraw
+                    <p className={m.proposalMeta}>Waiting for {friendName} to accept…</p>
+                    <div className={m.row}>
+                      <button type="button" className={m.btnGhost} onClick={withdrawProposal} disabled={busy}>
+                        {busy ? 'Withdrawing…' : 'Withdraw'}
                       </button>
                     </div>
                   </>
                 ) : (
-                  <div className={s.actions}>
-                    <button type="button" className={s.primary} onClick={acceptProposal} disabled={busy}>
-                      Accept & start
+                  <div className={m.row}>
+                    <button type="button" className={m.btn} onClick={acceptProposal} disabled={busy}>
+                      {busy ? 'Starting…' : 'Accept & start'}
                     </button>
-                    <button type="button" className={s.secondary} onClick={rejectProposal} disabled={busy}>
+                    <button type="button" className={m.btnGhost} onClick={rejectProposal} disabled={busy}>
                       Decline
                     </button>
                   </div>
@@ -742,277 +849,137 @@ export default function MeetPage() {
             )}
 
             {droppedPin && (
-              <section className={s.card}>
-                <h2 className={s.cardTitle}>Pinned spot</h2>
-                <div className={s.actions} style={{ marginTop: 0 }}>
-                  <button
-                    type="button"
-                    className={s.primary}
-                    disabled={busy}
-                    onClick={() => propose({ name: 'Pinned spot', lat: droppedPin.lat, lng: droppedPin.lng })}
-                  >
-                    Suggest this spot
-                  </button>
-                  <button type="button" className={s.secondary} onClick={() => setDroppedPin(null)}>
-                    Clear
-                  </button>
-                </div>
+              <section className={m.spotRow}>
+                <span className={m.spotIcon} aria-hidden="true">
+                  <PinIcon />
+                </span>
+                <span className={m.spotText}>
+                  <span className={m.kicker}>Pinned spot</span>
+                  <span className={m.spotName}>Your dropped pin</span>
+                </span>
+                <button
+                  type="button"
+                  className={`${m.btn} ${m.btnSm}`}
+                  disabled={busy}
+                  onClick={() => propose({ name: 'Pinned spot', lat: droppedPin.lat, lng: droppedPin.lng })}
+                >
+                  {busy ? 'Sending…' : 'Suggest'}
+                </button>
+                <button
+                  type="button"
+                  className={`${m.btnGhost} ${m.btnSm}`}
+                  onClick={() => setDroppedPin(null)}
+                  aria-label="Clear pinned spot"
+                >
+                  Clear
+                </button>
               </section>
             )}
 
-            {selectedPlace && (
-              <section className={s.card}>
-                <h2 className={s.cardTitle}>{categoryLabel(selectedPlace.category)}</h2>
-                <p className={s.proposalName}>{selectedPlace.name}</p>
-                <div className={s.actions}>
-                  <button type="button" className={s.primary} disabled={busy} onClick={() => propose(selectedPlace)}>
-                    Suggest this place
-                  </button>
-                </div>
-              </section>
+            {!halfway && friendLoc && myPos && <p className={m.hint}>Finding the fair halfway point…</p>}
+
+            {halfway && (
+              <HalfwayRow
+                name={halfway.hub ? halfway.hub.name : 'The exact midpoint'}
+                busy={busy}
+                onSuggest={() =>
+                  propose(
+                    halfway.hub
+                      ? { name: halfway.hub.name, lat: halfway.hub.lat, lng: halfway.hub.lng }
+                      : { name: 'Halfway point', lat: halfway.point[0], lng: halfway.point[1] }
+                  )
+                }
+              />
             )}
 
             {halfway && (
-              <section className={s.card}>
-                <h2 className={s.cardTitle}>Fair halfway point</h2>
-                <p className={s.proposalName}>{halfway.hub ? halfway.hub.name : 'The exact midpoint'}</p>
-                <div className={s.actions}>
-                  <button
-                    type="button"
-                    className={s.secondary}
-                    disabled={busy}
-                    onClick={() =>
-                      propose(
-                        halfway.hub
-                          ? { name: halfway.hub.name, lat: halfway.hub.lat, lng: halfway.hub.lng }
-                          : { name: 'Halfway point', lat: halfway.point[0], lng: halfway.point[1] }
-                      )
-                    }
-                  >
-                    Suggest meeting here
-                  </button>
-                </div>
-                <p className={s.hint}>Or pick a place below, or tap anywhere on the map to drop a pin.</p>
-              </section>
-            )}
-
-            {halfway && (
-              <section className={s.card}>
-                <h2 className={s.cardTitle}>Places nearby</h2>
-                <CategoryChips
-                  selected={cats}
-                  onToggle={(c) => setCats((cur) => (cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]))}
-                />
-                <div style={{ marginTop: 10 }}>
-                  {placesLoading && <p className={s.muted}>Finding places…</p>}
-                  {!placesLoading && places?.length === 0 && (
-                    <p className={s.muted}>Nothing in these categories nearby — try another.</p>
-                  )}
-                  {!placesLoading && places?.length > 0 && (
-                    <ul className={s.places}>
-                      {places.map((p) => (
-                        <li
-                          key={p.id}
-                          className={`${s.placeRow} ${p.id === selectedPlaceId ? s.placeRowActive : ''}`}
-                        >
-                          <span className={s.dot} style={{ background: CATEGORY_COLORS[p.category] }} />
-                          <button type="button" className={s.placeMain} onClick={() => setSelectedPlaceId(p.id)}>
-                            <div className={s.placeName}>{p.name}</div>
-                            <div className={s.placeMeta}>
-                              {categoryLabel(p.category)}
-                              {p.distanceKm != null && ` · ${fmtKm(p.distanceKm)} from centre`}
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            className={`${s.secondary} ${s.small}`}
-                            disabled={busy}
-                            onClick={() => propose(p)}
-                          >
-                            Suggest
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </section>
+              <FairSpots
+                places={places}
+                loading={placesLoading}
+                cats={cats}
+                onCats={setCats}
+                me={myPos}
+                friend={friendLoc}
+                friendName={friendName}
+                meLetter={meLetter}
+                friendLetter={friendLetter}
+                busy={busy}
+                onPick={propose}
+                selectedId={selectedPlaceId}
+                onSelect={setSelectedPlaceId}
+              />
             )}
           </>
         )}
 
         {status === 'live' && dest && (
           <>
-            <section className={s.card}>
-              <h2 className={s.cardTitle}>Meeting at</h2>
-              <p className={s.proposalName}>{dest.name}</p>
-              <div className={s.actions}>
-                {navigating ? (
-                  <button type="button" className={s.secondary} onClick={() => setNavMode(false)}>
-                    Exit navigation
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className={s.primary}
-                    onClick={() => {
-                      setPov('me');
-                      setNavMode(true);
-                    }}
-                  >
-                    Navigate
-                  </button>
-                )}
-              </div>
-              <div className={s.povSwitch} role="tablist" aria-label="Whose route to follow">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={viewing === 'me'}
-                  className={viewing === 'me' ? s.povOn : s.pov}
-                  onClick={() => setPov('me')}
-                >
-                  My route
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={viewing === 'friend'}
-                  className={viewing === 'friend' ? s.povOn : s.pov}
-                  onClick={() => setPov('friend')}
-                  disabled={!friendLoc}
-                >
-                  {friendName}&apos;s location
-                </button>
-              </div>
-            </section>
-
-            <section className={s.card}>
-              <div className={s.stat}>
-                <div className={s.avatar}>{initialOf(profiles[user.id])}</div>
-                <div className={s.statMain}>
-                  <div className={s.personName}>You</div>
-                  <div className={s.personSub}>
-                    {iArrived ? <span className={s.arrived}>Arrived</span> : myEtaMin != null ? `~${fmtMin(myEtaMin)} by road` : 'Locating…'}
-                  </div>
-                </div>
-                {myDistKm != null && (
-                  <div className={s.statValue}>{fmtKm(myNav.progress?.remainingKm ?? myDistKm)}</div>
-                )}
-              </div>
-              <div className={s.stat}>
-                <div className={`${s.avatar} ${s.avatarAlt}`}>{initialOf(friend)}</div>
-                <div className={s.statMain}>
-                  <div className={s.personName}>{friendName}</div>
-                  <div className={s.personSub}>
-                    {friendArrived ? (
-                      <span className={s.arrived}>Arrived</span>
-                    ) : friendLoc ? (
-                      <>
-                        {(friendNav.progress?.etaMin ?? friendLoc.eta_min) != null &&
-                          `~${fmtMin(friendNav.progress?.etaMin ?? friendLoc.eta_min)} · `}
-                        {roughFriend && `approximate (±${fmtKm(friendLoc.accuracy / 1000)}) · `}
-                        {fmtSpeed(friendLoc.speedKmh) && `${fmtSpeed(friendLoc.speedKmh)} · `}
-                        updated {fmtAgo(friendLoc.updated_at, now)}
-                      </>
-                    ) : (
-                      'Waiting for their location…'
-                    )}
-                  </div>
-                </div>
-                {friendDistKm != null && (
-                  <div className={s.statValue}>{fmtKm(friendNav.progress?.remainingKm ?? friendDistKm)}</div>
-                )}
-              </div>
-            </section>
-
-            <p className={s.hint}>
-              {native
-                ? 'Location keeps sharing in the background — you’ll see a Halfway notification while it’s on.'
-                : 'Keep Halfway open on screen while you travel — phones pause location sharing for web apps running in the background.'}
-            </p>
+            <DestCard
+              name={dest.name}
+              navigating={navigating}
+              onNavigate={startNav}
+              onExit={() => setNavMode(false)}
+              viewing={viewing}
+              onPov={setPov}
+              friendName={friendName}
+              friendKnown={!!friendLoc}
+            />
+            <PeopleList
+              rows={[
+                {
+                  key: 'me',
+                  me: true,
+                  letter: meLetter,
+                  name: 'You',
+                  arrived: iArrived,
+                  sub: myEtaMin != null ? `~${fmtMin(myEtaMin)} by road` : 'Locating…',
+                  km: myDistKm != null ? myNav.progress?.remainingKm ?? myDistKm : null,
+                },
+                {
+                  key: 'friend',
+                  letter: friendLetter,
+                  name: friendName,
+                  arrived: friendArrived,
+                  sub: friendLoc ? (
+                    <>
+                      {friendEta != null && `~${fmtMin(friendEta)} · `}
+                      {roughFriend && `approximate (±${fmtKm(friendLoc.accuracy / 1000)}) · `}
+                      {fmtSpeed(friendLoc.speedKmh) && `${fmtSpeed(friendLoc.speedKmh)} · `}
+                      updated {friendAgo}
+                    </>
+                  ) : (
+                    'Waiting for their location…'
+                  ),
+                  km: friendDistKm != null ? friendNav.progress?.remainingKm ?? friendDistKm : null,
+                },
+              ]}
+            />
+            <p className={m.hint}>{shareHint}</p>
           </>
         )}
 
-        <NotificationToggle />
-
-        <button type="button" className={`${s.danger} ${s.block}`} onClick={endMeetup} disabled={busy}>
+        <button type="button" className={m.btnDanger} onClick={endMeetup} disabled={busy}>
           {status === 'live' ? 'End meetup' : 'Cancel meetup'}
         </button>
       </aside>
-
-      <div className={s.meetMap}>
-        {navigating ? (
-          <>
-            <NavigationMap
-              focus={myPos}
-              overview={viewing === 'friend'}
-              bearing={myNav.progress?.bearing ?? 0}
-              route={myNav.nav?.coords}
-              me={myPos}
-              meLetter={initialOf(profiles[user.id])}
-              friend={friendLoc}
-              friendLetter={initialOf(friend)}
-              dest={dest}
-            />
-            {viewing === 'friend' ? (
-              <FriendSpot name={friendName} me={myPos} friend={friendLoc} now={now} />
-            ) : (
-              <NavBanner who="You" isMe pos={myPos} live={myNav} arrived={iArrived} />
-            )}
-          </>
-        ) : (
-          <MeetMap
-            me={myPos}
-            meLetter={initialOf(profiles[user.id])}
-            friend={friendLoc}
-            friendLetter={initialOf(friend)}
-            friendName={friendName}
-            midpoint={status === 'planning' ? halfway?.point : null}
-            places={status === 'planning' ? places : null}
-            selectedPlaceId={selectedPlaceId}
-            onPlaceSelect={setSelectedPlaceId}
-            proposal={proposal}
-            dest={dest}
-            route={status === 'live' ? myNav.nav?.coords : null}
-            altRoute={status === 'live' ? friendNav.nav?.coords : null}
-            droppedPin={droppedPin}
-            onMapClick={status === 'planning' && !proposal ? setDroppedPin : null}
-            fitKey={fitKey}
-            panTarget={selectedPlace}
-          />
-        )}
-
-        {navigating ? (
-          <button
-            type="button"
-            className={s.recenter}
-            onClick={() => setPov(viewing === 'me' && friendLoc ? 'friend' : 'me')}
-            disabled={!friendLoc}
-          >
-            {viewing === 'me' ? `See ${friendName}` : 'Back to my route'}
-          </button>
-        ) : (
-          <button type="button" className={s.recenter} onClick={() => setRecenter((n) => n + 1)}>
-            Show everyone
-          </button>
-        )}
-      </div>
     </div>
   );
 }
 
-function Centered({ title, text, avatar, pulse, children }) {
+function Centered({ title, text, avatar, pulse, loading, children }) {
   return (
     <div className={s.page}>
       <div className={s.topBar} style={{ maxWidth: 440, margin: '0 auto' }}>
-        <Link href="/friends" className={s.back}>← Friends</Link>
+        <Link href="/friends" className={s.backBtn} aria-label="Back to friends">
+          <ArrowLeft />
+        </Link>
         <ThemeToggle />
       </div>
       <div className={`${s.card} ${s.centerCard}`}>
         {avatar && (
           <div className={`${s.avatar} ${s.avatarAlt} ${s.bigAvatar} ${pulse ? s.pulseRing : ''}`}>{avatar}</div>
         )}
+        {loading && <span className={s.spinner} aria-hidden="true" />}
         <h1 className={s.meetTitle}>{title}</h1>
         {text && <p className={s.muted} style={{ marginTop: 8 }}>{text}</p>}
         {children && (

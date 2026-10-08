@@ -12,9 +12,10 @@
   max-width: 400px;
   background: var(--panel);
   border: 1px solid var(--contour);
-  border-radius: 14px;
+  border-radius: var(--r-lg);
   padding: 32px 28px;
-  box-shadow: 0 8px 32px var(--shadow);
+  box-shadow: var(--shadow-2);
+  animation: hw-rise var(--t-slow) var(--ease-out) backwards;
 }
 
 .logo {
@@ -53,14 +54,16 @@
   min-height: 44px;
   font-size: 16px;
   color: var(--ink);
-  background: var(--paper);
+  background: var(--surface-2);
   border: 1px solid var(--contour);
-  border-radius: 8px;
+  border-radius: var(--r-sm);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
 }
 
 .input:focus {
   outline: none;
-  border-color: var(--ink);
+  border-color: var(--ember);
+  box-shadow: 0 0 0 3px var(--ember-soft);
 }
 
 .submit {
@@ -68,17 +71,23 @@
   padding: 12px;
   min-height: 48px;
   font-size: 15px;
-  font-weight: 600;
-  background: var(--ink);
-  color: var(--paper);
+  font-weight: 700;
+  background: var(--ember);
+  color: var(--on-ember);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-ember);
+  transition: transform var(--t-fast) var(--ease-out), opacity var(--t-fast);
   cursor: pointer;
   margin-top: 4px;
 }
 
 .submit:hover {
-  opacity: 0.9;
+  opacity: 0.92;
+}
+
+.submit:active {
+  transform: scale(0.98);
 }
 
 .submit:disabled {
@@ -111,8 +120,8 @@
   font-weight: 600;
   background: var(--panel);
   color: var(--ink);
-  border: 1px solid var(--contour);
-  border-radius: 8px;
+  border: 1px solid var(--contour-strong);
+  border-radius: var(--r-pill);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -126,7 +135,7 @@
 
 .error {
   padding: 10px 12px;
-  background: #fdf0f0;
+  background: color-mix(in srgb, var(--error) 12%, var(--panel));
   color: var(--error);
   border-radius: 8px;
   font-size: 13px;

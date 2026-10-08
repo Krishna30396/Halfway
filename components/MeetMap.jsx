@@ -15,6 +15,8 @@ import 'leaflet/dist/leaflet.css';
 import VectorBaseLayer from './VectorBaseLayer';
 import { CATEGORY_COLORS } from '@/lib/categories';
 import { glideMarker } from '@/lib/liveTracking';
+import { useMapColors } from './meet/tokens';
+import m from './meet/mapBits.module.css';
 
 const esc = (t) =>
   String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -27,11 +29,14 @@ function cachedIcon(key, make) {
   return iconCache.get(key);
 }
 
-const personIcon = (letter, color, isMe) =>
-  cachedIcon(`person:${letter}:${color}:${isMe}`, () =>
+// Me = ember, friend = ink. CSS variables work here (it's HTML), so pins follow the theme.
+const personIcon = (letter, isMe) =>
+  cachedIcon(`person:${letter}:${isMe}`, () =>
     L.divIcon({
       className: '',
-      html: `<div class="person-pin${isMe ? ' person-pin-me' : ''}" style="background:${color}">${esc(letter)}</div>`,
+      html: `<div class="person-pin${isMe ? ' person-pin-me' : ''}" style="background:${
+        isMe ? 'var(--ember)' : 'var(--ink-solid)'
+      };color:${isMe ? 'var(--on-ember)' : 'var(--on-ink)'}">${esc(letter)}</div>`,
       iconSize: [32, 32],
       iconAnchor: [16, 16],
     })
@@ -48,21 +53,48 @@ const placeIcon = (category, active) =>
     const size = active ? 16 : 11;
     return L.divIcon({
       className: '',
-      html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid ${active ? '#1E2A24' : '#FFFFFF'};box-shadow:0 1px 3px rgba(30,42,36,.35)"></div>`,
+      html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid ${active ? 'var(--ink-solid)' : '#FFFFFF'};box-shadow:0 1px 3px rgba(23,23,26,.35)"></div>`,
       iconSize: [size, size],
       iconAnchor: [size / 2, size / 2],
     });
   });
 
-function Fit({ points, fitKey }) {
+function Fit({ points, fitKey, insets }) {
   const map = useMap();
-  useEffect(() => {
+  const fitRef = useRef(null);
+  const touched = useRef(false);
+  fitRef.current = () => {
     const pts = points.filter(Boolean);
-    if (pts.length >= 2) map.fitBounds(L.latLngBounds(pts), { padding: [56, 56], maxZoom: 16 });
+    // Insets keep everyone clear of the floating header and controls.
+    const pad = insets
+      ? { paddingTopLeft: [insets.left, insets.top], paddingBottomRight: [insets.right, insets.bottom] }
+      : { padding: [56, 56] };
+    if (pts.length >= 2) map.fitBounds(L.latLngBounds(pts), { ...pad, maxZoom: 16 });
     else if (pts.length === 1) map.setView(pts[0], 15);
+  };
+  useEffect(() => {
+    touched.current = false;
+    fitRef.current();
     // Only refit when the set of things on the map changes, not on every GPS tick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, fitKey]);
+  // The sheet below the map grows as content loads; keep everyone in view
+  // until the person pans the map themselves.
+  useEffect(() => {
+    const onUser = () => (touched.current = true);
+    const onResize = () => !touched.current && fitRef.current();
+    map.on('dragstart', onUser);
+    map.on('resize', onResize);
+    const el = map.getContainer();
+    el.addEventListener('wheel', onUser, { passive: true });
+    el.addEventListener('touchstart', onUser, { passive: true });
+    return () => {
+      map.off('dragstart', onUser);
+      map.off('resize', onResize);
+      el.removeEventListener('wheel', onUser);
+      el.removeEventListener('touchstart', onUser);
+    };
+  }, [map]);
   return null;
 }
 
@@ -111,6 +143,19 @@ function GlidingMarker({ lat, lng, children, ...props }) {
   );
 }
 
+// The map's box changes as the bottom sheet grows and shrinks; Leaflet only
+// watches the window, so tell it explicitly.
+function AutoResize() {
+  const map = useMap();
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => map.invalidateSize({ pan: false }));
+    ro.observe(map.getContainer());
+    return () => ro.disconnect();
+  }, [map]);
+  return null;
+}
+
 function Clicks({ onClick }) {
   useMapEvents({
     click(e) {
@@ -133,15 +178,22 @@ export default function MeetMap({
   proposal,
   dest,
   route,
-  routeColor = '#2F6F5E',
+  routeColor,
   altRoute,
-  altRouteColor = '#6E4F8C',
+  altRouteColor,
   follow,
   droppedPin,
   onMapClick,
   fitKey,
   panTarget,
+  insets,
+  meTag,
+  friendTag,
+  link,
 }) {
+  const colors = useMapColors();
+  routeColor ||= colors.ember;
+  altRouteColor ||= colors.ink;
   const start = me ? [me.lat, me.lng] : friend ? [friend.lat, friend.lng] : [20, 0];
   const points = [
     me && [me.lat, me.lng],
@@ -158,10 +210,18 @@ export default function MeetMap({
       style={{ width: '100%', height: '100%', background: 'var(--map-bg)' }}
     >
       <VectorBaseLayer />
-      {follow ? <Follow target={follow} /> : <Fit points={points} fitKey={fitKey} />}
+      <AutoResize />
+      {follow ? <Follow target={follow} /> : <Fit points={points} fitKey={fitKey} insets={insets} />}
       <PanTo target={panTarget} />
       {onMapClick && <Clicks onClick={onMapClick} />}
 
+      {link && link.filter(Boolean).length >= 2 && (
+        <Polyline
+          positions={link.filter(Boolean)}
+          pathOptions={{ color: colors.ink, weight: 3, opacity: 0.75, dashArray: '1 9', lineCap: 'round' }}
+          interactive={false}
+        />
+      )}
       {altRoute && (
         <Polyline
           positions={altRoute}
@@ -185,6 +245,14 @@ export default function MeetMap({
       ))}
 
       {midpoint && !dest && (
+        <Circle
+          center={midpoint}
+          radius={260}
+          pathOptions={{ stroke: false, fillColor: colors.ember, fillOpacity: 0.16 }}
+          interactive={false}
+        />
+      )}
+      {midpoint && !dest && (
         <Marker position={midpoint} icon={simpleIcon('midpoint-pin', 16)} zIndexOffset={300}>
           <Tooltip direction="top" offset={[0, -10]}>Halfway</Tooltip>
         </Marker>
@@ -207,7 +275,7 @@ export default function MeetMap({
           <Circle
             center={[dest.lat, dest.lng]}
             radius={150}
-            pathOptions={{ color: '#1E2A24', weight: 1, dashArray: '4 4', fillOpacity: 0.05 }}
+            pathOptions={{ stroke: false, fillColor: colors.ember, fillOpacity: 0.16 }}
           />
           <Marker position={[dest.lat, dest.lng]} icon={simpleIcon('dest-pin', 24)} zIndexOffset={400}>
             <Tooltip direction="top" offset={[0, -14]} permanent>{dest.name}</Tooltip>
@@ -219,17 +287,23 @@ export default function MeetMap({
         <Circle
           center={[friend.lat, friend.lng]}
           radius={friend.accuracy}
-          pathOptions={{ color: '#6E4F8C', weight: 1, fillOpacity: 0.08, opacity: 0.4 }}
+          pathOptions={{ color: colors.ink, weight: 1, fillOpacity: 0.06, opacity: 0.35 }}
         />
       )}
       {friend && (
         <GlidingMarker
           lat={friend.lat}
           lng={friend.lng}
-          icon={personIcon(friendLetter || '?', '#6E4F8C', false)}
+          icon={personIcon(friendLetter || '?', false)}
           zIndexOffset={600}
         >
-          <Tooltip direction="top" offset={[0, -16]}>{friendName}</Tooltip>
+          {friendTag ? (
+            <Tooltip key="tag" direction="top" offset={[0, -18]} permanent className={`${m.eta} ${m.etaFriend}`}>
+              {friendTag}
+            </Tooltip>
+          ) : (
+            <Tooltip key="name" direction="top" offset={[0, -16]}>{friendName}</Tooltip>
+          )}
         </GlidingMarker>
       )}
 
@@ -239,11 +313,17 @@ export default function MeetMap({
             <Circle
               center={[me.lat, me.lng]}
               radius={me.accuracy}
-              pathOptions={{ color: '#2F6F5E', weight: 1, fillOpacity: 0.08, opacity: 0.4 }}
+              pathOptions={{ color: colors.ember, weight: 1, fillOpacity: 0.08, opacity: 0.4 }}
             />
           )}
-          <Marker position={[me.lat, me.lng]} icon={personIcon(meLetter || 'Y', '#2F6F5E', true)} zIndexOffset={700}>
-            <Tooltip direction="top" offset={[0, -16]}>You</Tooltip>
+          <Marker position={[me.lat, me.lng]} icon={personIcon(meLetter || 'Y', true)} zIndexOffset={700}>
+            {meTag ? (
+              <Tooltip key="tag" direction="top" offset={[0, -18]} permanent className={`${m.eta} ${m.etaMe}`}>
+                {meTag}
+              </Tooltip>
+            ) : (
+              <Tooltip key="name" direction="top" offset={[0, -16]}>You</Tooltip>
+            )}
           </Marker>
         </>
       )}

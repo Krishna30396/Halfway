@@ -2,7 +2,7 @@
   position: fixed;
   inset: 0;
   z-index: 5000;
-  background: rgba(15, 21, 18, 0.45);
+  background: color-mix(in srgb, var(--ink-solid) 40%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15,11 +15,11 @@
   background: var(--panel);
   color: var(--ink);
   border: 1px solid var(--contour);
-  border-radius: 18px;
+  border-radius: var(--r-lg);
   padding: 26px 22px 18px;
   text-align: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
-  animation: rise 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: var(--shadow-2);
+  animation: rise var(--t-med) var(--ease-out);
 }
 
 @keyframes rise {
@@ -34,8 +34,8 @@
   height: 60px;
   margin: 0 auto 14px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--route) 15%, var(--panel));
-  color: var(--route);
+  background: var(--ember-soft);
+  color: var(--ember);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -43,6 +43,7 @@
 
 .title {
   font-size: 20px;
+  font-weight: 800;
   margin-bottom: 8px;
 }
 
@@ -68,15 +69,16 @@
   display: block;
   width: 100%;
   min-height: 48px;
-  border-radius: 12px;
+  border-radius: var(--r-pill);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
 }
 
 .primary {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--ember);
+  color: var(--on-ember);
+  box-shadow: var(--shadow-ember);
   border: none;
 }
 

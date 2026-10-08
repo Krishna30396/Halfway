@@ -32,9 +32,9 @@
 }
 
 .chipOn {
-  background: var(--ink-solid);
-  border-color: var(--ink-solid);
-  color: var(--on-ink);
+  background: var(--ember);
+  border-color: var(--ember);
+  color: var(--on-ember);
   animation: chip-pop var(--t-med) var(--ease-spring);
 }
 
@@ -84,4 +84,12 @@
   .row::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* Home: Café · Food · Gym · More, centred */
+.centreRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }

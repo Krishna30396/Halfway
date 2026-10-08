@@ -492,9 +492,9 @@
 
 .altChipOn,
 .hubChipOn {
-  background: var(--ink-solid);
-  border-color: var(--ink-solid);
-  color: var(--on-ink);
+  background: var(--ember);
+  border-color: var(--ember);
+  color: var(--on-ember);
 }
 
 .hubSection {
@@ -605,4 +605,54 @@
     bottom: calc(var(--hw-tabbar-h) + 96px);
     z-index: 200;
   }
+}
+
+/* "Use my location" under the Starting from field */
+.useMine {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--ember-line);
+  background: var(--ember-soft);
+  color: var(--ember-strong);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.useMine:disabled { opacity: 0.7; }
+.useMineDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ember);
+  animation: hw-live-dot 1.6s ease-out infinite;
+}
+
+/* "+ Add their location" / "+ Add where you're going" */
+.addField {
+  width: 100%;
+  margin-top: 12px;
+  min-height: 46px;
+  border-radius: var(--r-sm);
+  border: 1.5px dashed var(--ember-line);
+  background: transparent;
+  color: var(--ember-strong);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Fields that appear on request slide down into place */
+.slideIn {
+  animation: hw-slide-in var(--t-med) var(--ease-out) both;
+}
+@keyframes hw-slide-in {
+  from { opacity: 0; transform: translateY(-8px); max-height: 0; }
+  to   { opacity: 1; transform: none; max-height: 400px; }
 }

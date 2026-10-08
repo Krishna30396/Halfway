@@ -26,9 +26,9 @@
 }
 
 .chipOn {
-  background: var(--ink-solid);
-  border-color: var(--ink-solid);
-  color: var(--on-ink);
+  background: var(--ember);
+  border-color: var(--ember);
+  color: var(--on-ember);
   animation: opt-pop var(--t-med) var(--ease-spring);
 }
 

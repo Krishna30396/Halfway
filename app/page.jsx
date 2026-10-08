@@ -19,7 +19,6 @@ import AuthButton from '@/components/AuthButton';
 import SaveButton from '@/components/SaveButton';
 import ModeSwitch from '@/components/home/ModeSwitch';
 import OptionChips from '@/components/home/OptionChips';
-import FriendChips from '@/components/home/FriendChips';
 import TabBar from '@/components/home/TabBar';
 import HalfwayMark from '@/components/home/HalfwayMark';
 import {
@@ -41,7 +40,7 @@ const MapView = dynamic(() => import('@/components/MapView'), {
 });
 
 const DEFAULT_CATS = ['cafe'];
-const PRIMARY_CATS = ['cafe', 'restaurant', 'sport', 'park'];
+const PRIMARY_CATS = ['cafe', 'restaurant', 'sport'];
 const NEAR_KM = [1, 3, 5];
 const DETOUR_MIN = [5, 10, 15];
 const MODE_SUFFIX = { halfway: 'halfway', nearby: 'nearby', onway: 'on the way' };
@@ -88,6 +87,10 @@ export default function Home() {
   const [tab, setTab] = useState('search');
   const [friendId, setFriendId] = useState(null);
   const [editingFrom, setEditingFrom] = useState(false);
+  const [locating, setLocating] = useState(false);
+  // The second location and the free-text bar stay folded until asked for.
+  const [showB, setShowB] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [hint, setHint] = useState(null);
   const [busy, setBusy] = useState(false);
   const [sheet, setSheet] = useState({ snap: 'tall', key: 0 });
@@ -174,7 +177,6 @@ export default function Home() {
           const lat = +pos.coords.latitude.toFixed(4);
           const lng = +pos.coords.longitude.toFixed(4);
           rememberPosition(pos.coords.latitude, pos.coords.longitude);
-          setA((cur) => cur || { lat, lng, name: 'Current location' });
           if (!pb) setPanTarget({ lat, lng, zoom: 13 });
         },
         () => {},
@@ -518,9 +520,11 @@ export default function Home() {
       return flagMissing('Where are you starting from?', 'input[aria-label="Starting from"]');
     }
     if (mode === 'halfway' && !b) {
-      return flagMissing('Pick a friend or enter their location.', 'input[aria-label="Or enter their location"]');
+      setShowB(true);
+      return flagMissing('Add their location.', 'input[aria-label="Their location"]');
     }
     if (mode === 'onway' && !b) {
+      setShowB(true);
       return flagMissing('Where are you heading?', 'input[aria-label="Going to"]');
     }
     if (mode === 'nearby') {
@@ -587,12 +591,31 @@ export default function Home() {
     </div>
   );
 
+  const useMyLocation = () => {
+    if (!navigator.geolocation) return showToast("This device can't share its location.");
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        rememberPosition(pos.coords.latitude, pos.coords.longitude);
+        setA({ lat: +pos.coords.latitude.toFixed(4), lng: +pos.coords.longitude.toFixed(4), name: 'My location' });
+        setEditingFrom(false);
+        setLocating(false);
+        setHint(null);
+      },
+      () => {
+        setLocating(false);
+        showToast('Location is off — type where you are instead.');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  };
+
   const fromRow =
     a && !editingFrom ? (
       <div className={styles.fromRow}>
         <span className={styles.fromDot} aria-hidden="true" />
         <span className={styles.fromText}>
-          From <strong>{shortName(a.name)}</strong>
+          Starting from <strong>{shortName(a.name)}</strong>
         </span>
         <button type="button" className={styles.fromChange} onClick={() => setEditingFrom(true)}>
           Change
@@ -613,39 +636,39 @@ export default function Home() {
           }}
           bias={b}
         />
+        <button type="button" className={`${styles.useMine} hw-press`} onClick={useMyLocation} disabled={locating}>
+          <span className={styles.useMineDot} aria-hidden="true" />
+          {locating ? 'Finding you…' : 'Use my location'}
+        </button>
       </div>
+    );
+
+  // "+ Add …" opens the second search bar with a slide; it stays open once set.
+  const secondField = (label, addLabel) =>
+    showB || b ? (
+      <div className={`${styles.cardField} ${styles.slideIn}`}>
+        <LocationInput
+          label={label}
+          marker="b"
+          value={b}
+          onSelect={(v) => {
+            setB(v);
+            if (v) setHint(null);
+          }}
+          bias={a}
+        />
+      </div>
+    ) : (
+      <button type="button" className={`${styles.addField} hw-press`} onClick={() => setShowB(true)}>
+        + {addLabel}
+      </button>
     );
 
   const modeCard = (
     <div key={mode} className={styles.modeCard}>
       {mode === 'halfway' && (
         <>
-          <p className={styles.cardTitle}>Who are you meeting?</p>
-          <FriendChips
-            friends={friendList}
-            selectedId={friendId}
-            onSelect={(id) => {
-              setFriendId(id);
-              setHint(null);
-            }}
-            onInvite={f.me?.username ? invite : undefined}
-            inviteHref="/friends"
-          />
-          <div className={styles.cardField}>
-            <LocationInput
-              label="Or enter their location"
-              marker="b"
-              value={b}
-              onSelect={(v) => {
-                setB(v);
-                if (v) {
-                  setFriendId(null);
-                  setHint(null);
-                }
-              }}
-              bias={a}
-            />
-          </div>
+          {secondField('Their location', 'Add their location')}
           <p className={styles.footnote}>
             <HalfwayMark size={16} className={styles.footMark} />
             We’ll pick a midpoint with a similar travel time for both of you.
@@ -662,18 +685,7 @@ export default function Home() {
         <>
           <p className={styles.cardTitle}>Stops along your route, with a detour of up to</p>
           <OptionChips options={DETOUR_MIN} value={detour} onChange={setDetour} format={(n) => `${n} min`} label="Detour" />
-          <div className={styles.cardField}>
-            <LocationInput
-              label="Going to"
-              marker="b"
-              value={b}
-              onSelect={(v) => {
-                setB(v);
-                if (v) setHint(null);
-              }}
-              bias={a}
-            />
-          </div>
+          {secondField('Going to', "Add where you're going")}
         </>
       )}
     </div>
@@ -691,9 +703,16 @@ export default function Home() {
 
       <section className={`${styles.block} hw-rise`} style={{ animationDelay: '100ms' }}>
         <h2 className={styles.sectionLabel}>What are you looking for?</h2>
-        <CategoryChips selected={query.trim() ? [] : cats} onToggle={toggleCat} primary={PRIMARY_CATS} />
+        <CategoryChips
+          selected={query.trim() ? [] : cats}
+          onToggle={toggleCat}
+          primary={PRIMARY_CATS}
+          moreOpen={moreOpen || !!query}
+          onMore={() => setMoreOpen((o) => !o)}
+        />
+        {(moreOpen || !!query) && (
         <form
-          className={styles.freeText}
+          className={`${styles.freeText} ${styles.slideIn}`}
           role="search"
           onSubmit={(e) => {
             e.preventDefault();
@@ -706,10 +725,11 @@ export default function Home() {
             className={styles.freeInput}
             value={query}
             onChange={(e) => setQuery(e.target.value.slice(0, 60))}
-            placeholder="Not listed? Type anything, e.g. bowling"
+            placeholder="Type anything, e.g. bowling, bar, cinema"
             aria-label="Search for anything"
             enterKeyHint="search"
             autoComplete="off"
+            autoFocus={moreOpen && !query}
           />
           {query && (
             <button type="button" className={styles.freeClear} aria-label="Clear" onClick={() => setQuery('')}>
@@ -717,6 +737,7 @@ export default function Home() {
             </button>
           )}
         </form>
+        )}
       </section>
     </div>
   );

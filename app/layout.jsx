@@ -1,5 +1,5 @@
 import './globals.css';
-import { Bricolage_Grotesque, Public_Sans, JetBrains_Mono } from 'next/font/google';
+import { Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import AuthProvider from '@/components/AuthProvider';
 import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -13,14 +13,17 @@ import Script from 'next/script';
 // Optional Google Analytics 4: set NEXT_PUBLIC_GA_ID (G-XXXXXXX) in Vercel to turn it on.
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
-const display = Bricolage_Grotesque({
+// Ember + Ink: one geometric sans for headings and body; headings use weight.
+const display = Plus_Jakarta_Sans({
   subsets: ['latin'],
+  weight: ['500', '600', '700', '800'],
   variable: '--font-display',
   display: 'swap',
 });
 
-const body = Public_Sans({
+const body = Plus_Jakarta_Sans({
   subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-body',
   display: 'swap',
 });
@@ -29,6 +32,7 @@ const mono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
   display: 'swap',
+  preload: false,
 });
 
 export const metadata = {
@@ -45,7 +49,7 @@ export const metadata = {
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#1E2A24',
+  themeColor: '#17171A',
 };
 
 export default function RootLayout({ children }) {

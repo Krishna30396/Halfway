@@ -372,7 +372,8 @@ a {
 .hw-press { transition: transform var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), background-color var(--t-fast); }
 .hw-press:active { transform: scale(0.97); }
 
-.leaflet-popup-content-wrapper {
+/* Scoped under .leaflet-container so these beat leaflet.css, which loads later. */
+.leaflet-container .leaflet-popup-content-wrapper {
   background: var(--panel);
   color: var(--ink);
   border: 1px solid var(--contour);
@@ -380,7 +381,7 @@ a {
   box-shadow: var(--shadow-2);
 }
 
-.leaflet-popup-tip {
+.leaflet-container .leaflet-popup-tip {
   background: var(--panel);
   border: 1px solid var(--contour);
 }

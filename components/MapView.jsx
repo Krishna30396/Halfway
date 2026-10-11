@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   MapContainer,
   Polyline,
@@ -13,6 +13,7 @@ import {
 import { CATEGORIES, CATEGORY_COLORS } from '@/lib/categories';
 import { placeholderFor } from '@/lib/placeholders';
 import PlaceImage from './PlaceImage';
+import PlaceDetails from './PlaceDetails';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import VectorBaseLayer from './VectorBaseLayer';
@@ -122,6 +123,7 @@ export default function MapView({
   onHubSelect,
   distanceNote,
 }) {
+  const popupRef = useRef(null);
   const center = useMemo(() => {
     if (midpoint) return [midpoint[0], midpoint[1]];
     if (a) return [a.lat, a.lng];
@@ -219,16 +221,14 @@ export default function MapView({
 
       {openPlace && (
         <Popup
+          ref={popupRef}
           position={[openPlace.lat, openPlace.lng]}
           offset={[0, -6]}
+          minWidth={280}
+          maxWidth={320}
           eventHandlers={{ remove: () => onPopupClose?.() }}
         >
           <div className="place-popup">
-            <PlaceImage
-              place={openPlace}
-              size={180}
-              style={{ width: '100%', height: 120, borderRadius: '6px 6px 0 0', marginBottom: 8 }}
-            />
             <strong>{openPlace.name}</strong>
             <div className="place-popup-meta">
               <span
@@ -249,6 +249,18 @@ export default function MapView({
                 {openPlace.distanceKm.toFixed(1)}&thinsp;km {distanceNote || 'away'}
               </div>
             )}
+            {/* Google rating, price, photos, menu and reviews, inside the app */}
+            <PlaceDetails
+              place={openPlace}
+              onResize={() => popupRef.current?.update()}
+              fallback={
+                <PlaceImage
+                  place={openPlace}
+                  size={180}
+                  style={{ width: '100%', height: 120, borderRadius: 8, marginTop: 8 }}
+                />
+              }
+            />
             <div className="place-popup-links">
               {openPlace.website && (
                 <a href={openPlace.website} target="_blank" rel="noopener noreferrer">

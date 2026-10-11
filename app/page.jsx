@@ -466,10 +466,12 @@ export default function Home() {
     (id) => {
       setActivePlaceId(id);
       setOpenPlaceId(id);
+      // Lower the sheet so the place card (photos, reviews) has the map's room.
+      askSheet('peek');
       const p = placesData?.find((x) => x.id === id);
       if (p) setPanTarget({ lat: p.lat, lng: p.lng });
     },
-    [placesData]
+    [placesData, askSheet]
   );
 
   const openPlace = openPlaceId ? placesData?.find((x) => x.id === openPlaceId) || null : null;

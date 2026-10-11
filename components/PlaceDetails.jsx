@@ -25,6 +25,15 @@ function load(place) {
   return cache.get(key);
 }
 
+// Photos are stored as one base link; Google serves any size from it.
+const GOOGLE_IMG = /googleusercontent\.com|ggpht\.com/;
+const sized = (p) => {
+  if (typeof p !== 'string') return p; // older saved shape
+  const u = p;
+  if (!GOOGLE_IMG.test(u) || /=[^/=]*$/.test(u.split('/').pop())) return { thumb: u, full: u };
+  return { thumb: `${u}=w320-h320-p-k-no`, full: `${u}=w1600-h1600-k-no` };
+};
+
 const stars = (n) => '★'.repeat(Math.round(n || 0)) + '☆'.repeat(5 - Math.round(n || 0));
 
 /**
@@ -82,7 +91,9 @@ export default function PlaceDetails({ place, fallback, onResize }) {
       .catch(() => setMenu({ status: 'error' }));
   };
 
-  const strip = (list) => (
+  const strip = (raw) => {
+    const list = raw.map(sized);
+    return (
     <div className={styles.strip}>
       {list.map((p, i) => (
         <button
@@ -96,7 +107,8 @@ export default function PlaceDetails({ place, fallback, onResize }) {
         </button>
       ))}
     </div>
-  );
+    );
+  };
 
   // Still loading: a quiet skeleton where the photos will go.
   if (!res) {

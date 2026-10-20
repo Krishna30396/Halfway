@@ -7,10 +7,13 @@ import styles from './PlaceDetails.module.css';
 // One fetch per place per visit; the server keeps results for everyone.
 const cache = new Map();
 
-function load(place) {
-  const key = String(place.id);
+function load(place, savedOnly) {
+  const id = String(place.id);
+  const key = savedOnly ? `saved:${id}` : id;
   if (!cache.has(key)) {
-    const q = new URLSearchParams({ key, name: place.name, lat: place.lat, lng: place.lng });
+    const q = savedOnly
+      ? new URLSearchParams({ key: id, saved: '1' })
+      : new URLSearchParams({ key: id, name: place.name, lat: place.lat, lng: place.lng, cat: place.category || '' });
     cache.set(
       key,
       fetch(`/api/place-info?${q}`)
@@ -39,8 +42,9 @@ const stars = (n) => '★'.repeat(Math.round(n || 0)) + '☆'.repeat(5 - Math.ro
 /**
  * Google rating, price, photos (with a Menu tab) and recent reviews for a
  * place, shown inside the app. `onResize` lets the map popup re-fit.
+ * `savedOnly` shows what is already saved and never spends a search.
  */
-export default function PlaceDetails({ place, fallback, onResize }) {
+export default function PlaceDetails({ place, fallback, onResize, savedOnly = false }) {
   const [res, setRes] = useState(null);
   const [tab, setTab] = useState('photos');
   const [menu, setMenu] = useState(null); // null | 'loading' | { photos } | { status }
@@ -53,11 +57,11 @@ export default function PlaceDetails({ place, fallback, onResize }) {
     setTab('photos');
     setMenu(null);
     setAllReviews(false);
-    load(place).then((d) => live && setRes(d));
+    load(place, savedOnly).then((d) => live && setRes(d));
     return () => {
       live = false;
     };
-  }, [place.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [place.id, savedOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     onResize?.();

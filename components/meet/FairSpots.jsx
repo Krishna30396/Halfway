@@ -50,6 +50,7 @@ export function MeetChips({ selected, onChange }) {
  * travel time for both people and a "Pick this" (= suggest) button.
  */
 export default function FairSpots({
+  title = 'Fair spots near halfway',
   places,
   loading,
   cats,
@@ -99,7 +100,7 @@ export default function FairSpots({
 
       <section>
         <div className={m.spotsHead}>
-          <h2>Fair spots near halfway</h2>
+          <h2>{title}</h2>
           {rows.length > 1 && (
             <button type="button" className={m.seeAll} onClick={() => setAll((a) => !a)} aria-expanded={all}>
               {all ? 'Show less' : 'See all'}

@@ -830,3 +830,57 @@
     animation: none;
   }
 }
+
+/* ---- Meetups page: Meetups / Add a friend toggle, pinned to the bottom ---- */
+.pageWithToggle {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
+.toggleBar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 50;
+  width: min(calc(100% - 32px), 420px);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-pill);
+  background: var(--panel);
+  border: 1px solid var(--contour-strong);
+  box-shadow: var(--shadow-2, 0 8px 24px rgba(0, 0, 0, 0.12));
+  animation: none !important;
+}
+
+.toggle,
+.toggleOn {
+  flex: 1;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--r-pill);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background-color var(--t-fast), color var(--t-fast);
+}
+
+.toggle {
+  background: transparent;
+  color: var(--muted);
+}
+
+.toggleOn {
+  background: var(--ember);
+  color: var(--on-ember);
+}
+
+.toggleOn .count {
+  background: var(--on-ember);
+  color: var(--ember);
+}

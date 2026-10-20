@@ -383,7 +383,10 @@ export default function MeetPage() {
     return () => controller.abort();
   }, [basisKey]);
 
-  const center = halfway ? (halfway.hub ? [halfway.hub.lat, halfway.hub.lng] : halfway.point) : null;
+  // Until the friend shares, show spots near me; then spots near halfway.
+  // Rounded (~100 m) so small moves of my live position don't refetch.
+  const nearMe = !friendLoc && myPos ? [+myPos.lat.toFixed(3), +myPos.lng.toFixed(3)] : null;
+  const center = halfway ? (halfway.hub ? [halfway.hub.lat, halfway.hub.lng] : halfway.point) : nearMe;
   const catsKey = cats.join(',');
 
   useEffect(() => {
@@ -808,13 +811,6 @@ export default function MeetPage() {
 
         {status === 'planning' && (
           <>
-            {!friendLoc && (
-              <p className={s.banner}>
-                Waiting for {friendName}&apos;s location. If it doesn&apos;t appear, ask them to open this
-                meetup and allow location access when their phone asks.
-              </p>
-            )}
-
             {proposal && (
               <section className={m.proposal}>
                 <span className={m.kicker}>{proposal.by === user.id ? 'You suggested' : `${friendName} suggested`}</span>
@@ -892,8 +888,9 @@ export default function MeetPage() {
               />
             )}
 
-            {halfway && (
+            {(halfway || nearMe) && (
               <FairSpots
+                title={halfway ? 'Fair spots near halfway' : 'Spots near you'}
                 places={places}
                 loading={placesLoading}
                 cats={cats}

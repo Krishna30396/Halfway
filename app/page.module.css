@@ -66,7 +66,7 @@
 
 /* Leaflet's zoom buttons move below the wordmark pill. */
 .map :global(.leaflet-top.leaflet-left) {
-  top: 68px;
+  top: 120px;
 }
 
 .map :global(.leaflet-control-zoom) {
@@ -123,6 +123,42 @@
   animation: hw-pop var(--t-med) var(--ease-spring) 80ms both;
 }
 
+/* ---- Category chips: on the map (desktop), above the sheet (phone) ---- */
+.mapChips {
+  position: absolute;
+  top: calc(max(14px, env(safe-area-inset-top)) + 54px);
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.chipRow > div {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  overflow-x: auto;
+  margin: 0;
+  padding: 4px 14px 12px;
+  scrollbar-width: none;
+  pointer-events: auto;
+}
+
+.chipRow > div::-webkit-scrollbar {
+  display: none;
+}
+
+.chipRow button {
+  flex-shrink: 0;
+  min-height: 40px;
+  box-shadow: 0 2px 8px rgba(20, 14, 10, 0.16);
+}
+
+@media (max-width: 768px) {
+  .mapChips {
+    display: none;
+  }
+}
+
 /* ---- Sheet / sidebar header ---- */
 .sheetHead {
   display: flex;
@@ -131,6 +167,75 @@
   min-height: 48px;
   padding: 0 18px 12px;
   border-bottom: 1px solid var(--contour);
+}
+
+/* Search bar: a pill, with a rolling hint word */
+.freeText.searchPill {
+  border-radius: var(--r-pill);
+  padding-left: 18px;
+}
+
+.searchHint {
+  position: absolute;
+  left: 50px;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.28em;
+  font-size: 14px;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.searchHintBox {
+  position: relative;
+  display: inline-block;
+  height: 1.4em;
+  line-height: 1.4em;
+  overflow: hidden;
+}
+
+.searchHintWord {
+  display: inline-block;
+  color: var(--ink);
+  font-weight: 600;
+  animation: hint-roll 2400ms var(--ease-out) both;
+}
+
+@keyframes hint-roll {
+  0% { transform: translateY(100%); opacity: 0; }
+  12% { transform: none; opacity: 1; }
+  88% { transform: none; opacity: 1; }
+  100% { transform: translateY(-100%); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .searchHintWord {
+    animation: none;
+  }
+}
+
+.searchHead {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.searchTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sheetHeadSearch {
+  min-height: 0;
+  padding-bottom: 4px;
+  border-bottom: 0;
 }
 
 .title {

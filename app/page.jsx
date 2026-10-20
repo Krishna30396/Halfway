@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { pointAtFraction, cumulative, haversine } from '@/lib/geo';
-import { CATEGORY_IDS } from '@/lib/categories';
+import { CATEGORIES, CATEGORY_IDS } from '@/lib/categories';
 import { useFriends } from '@/lib/useFriends';
 import { displayName, initialOf } from '@/lib/social';
 import LocationInput from '@/components/LocationInput';
@@ -13,11 +13,12 @@ import RadiusControl from '@/components/RadiusControl';
 import CategoryChips from '@/components/CategoryChips';
 import ResultsList from '@/components/ResultsList';
 import BottomSheet from '@/components/BottomSheet';
+import { MeetChips } from '@/components/meet/FairSpots';
 import AreaGuide from '@/components/AreaGuide';
+import ExploreSpots from '@/components/ExploreSpots';
 import ThemeToggle from '@/components/ThemeToggle';
 import AuthButton from '@/components/AuthButton';
 import SaveButton from '@/components/SaveButton';
-import ModeSwitch from '@/components/home/ModeSwitch';
 import OptionChips from '@/components/home/OptionChips';
 import TabBar from '@/components/home/TabBar';
 import HalfwayMark from '@/components/home/HalfwayMark';
@@ -79,11 +80,13 @@ export default function Home() {
   const [a, setA] = useState(null);
   const [b, setB] = useState(null);
 
-  const [mode, setMode] = useState('halfway');
+  // Search is nearby-only; halfway / on the way live on the meetup page.
+  const [mode, setMode] = useState('nearby');
   const [nearKm, setNearKm] = useState(3);
   const [detour, setDetour] = useState(10);
   const [query, setQuery] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  // Search opens straight on the spots view (the same one Explore uses).
+  const [submitted, setSubmitted] = useState(true);
   const [tab, setTab] = useState('search');
   const [friendId, setFriendId] = useState(null);
   const [editingFrom, setEditingFrom] = useState(false);
@@ -91,9 +94,13 @@ export default function Home() {
   // The second location and the free-text bar stay folded until asked for.
   const [showB, setShowB] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // What's typed in the Search bar; it searches on Enter.
+  const [searchDraft, setSearchDraft] = useState('');
+  // Search opened full screen: pickup point, search box, every place stacked.
+  const [searchOpen, setSearchOpen] = useState(false);
   const [hint, setHint] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [sheet, setSheet] = useState({ snap: 'tall', key: 0 });
+  const [sheet, setSheet] = useState({ snap: 'half', key: 0 });
 
   const [routes, setRoutes] = useState(null);
   const [routeIndex, setRouteIndex] = useState(0);
@@ -115,8 +122,11 @@ export default function Home() {
 
   const [activePlaceId, setActivePlaceId] = useState(null);
   const [openPlaceId, setOpenPlaceId] = useState(null);
+  const [exploreOpenId, setExploreOpenId] = useState(null);
+  const [featured, setFeatured] = useState(null);
   const [panTarget, setPanTarget] = useState(null);
   const [mapCenter, setMapCenter] = useState(null);
+  const [userPos, setUserPos] = useState(null);
   const [toast, setToast] = useState(null);
 
   const [restored, setRestored] = useState(false);
@@ -142,6 +152,8 @@ export default function Home() {
     urlIntent.current = {
       r: p.get('r') != null ? parseInt(p.get('r'), 10) : null,
       hub: p.get('hub'),
+      cat: !!p.get('cat'),
+      nk: !!p.get('nk'),
     };
 
     const rad = parseInt(p.get('rad'), 10);
@@ -156,13 +168,12 @@ export default function Home() {
     if (DETOUR_MIN.includes(dt)) setDetour(dt);
     if (p.get('q')) setQuery(p.get('q').slice(0, 60));
 
-    let m = p.get('m') === 'nearby' ? 'nearby' : p.get('m') === 'onway' ? 'onway' : 'halfway';
+    const m = 'nearby';
     if (p.get('view') === 'explore') {
-      m = 'nearby';
       setTab('explore');
       setSubmitted(true);
       setSheet({ snap: 'half', key: 1 });
-    } else if (m === 'nearby' ? pa : pa && pb) {
+    } else if (pa) {
       // A shared link opens straight on its results.
       setSubmitted(true);
       setSheet({ snap: 'half', key: 1 });
@@ -177,6 +188,7 @@ export default function Home() {
           const lat = +pos.coords.latitude.toFixed(4);
           const lng = +pos.coords.longitude.toFixed(4);
           rememberPosition(pos.coords.latitude, pos.coords.longitude);
+          setUserPos({ lat, lng });
           if (!pb) setPanTarget({ lat, lng, zoom: 13 });
         },
         () => {},
@@ -184,6 +196,16 @@ export default function Home() {
       );
     }
   }, []);
+
+  /* ---------- Profile defaults (unless the URL already set them) ---------- */
+  const prefsApplied = useRef(false);
+  useEffect(() => {
+    if (!restored || prefsApplied.current || !f.me) return;
+    prefsApplied.current = true;
+    const fav = (f.me.preferred_categories || []).filter((id) => CATEGORY_IDS.has(id));
+    if (!urlIntent.current.cat && fav.length) setCats(fav);
+    if (!urlIntent.current.nk && NEAR_KM.includes(f.me.default_radius)) setNearKm(f.me.default_radius);
+  }, [restored, f.me]);
 
   /* ---------- Route (Halfway + On the way) ---------- */
   const routeB = mode === 'nearby' ? null : b;
@@ -322,10 +344,11 @@ export default function Home() {
     }
     if (mode === 'nearby') {
       if (a) return { lat: a.lat, lng: a.lng, isHub: false, isStart: true };
+      if (userPos) return { ...userPos, isHub: false, isStart: true };
       return mapCenter ? { ...mapCenter, isHub: false } : null;
     }
     return null;
-  }, [mode, routes, hub, hubId, hubsLoading, a, mapCenter]);
+  }, [mode, routes, hub, hubId, hubsLoading, a, userPos, mapCenter]);
 
   const spec = useMemo(() => {
     if (!submitted) return null;
@@ -462,8 +485,114 @@ export default function Home() {
     }
   }, [showToast]);
 
+  // Both tabs show the spots view for now; Explore gets its own design next.
+  const exploring = true;
+
+  // Explore: the card in view is highlighted and centred on the map.
+  // Moving the map to a card must not count as "looking somewhere else", or the
+  // list (searched around the map centre) would reload on every swipe.
+  const focusedAt = useRef(0);
+  const onCenterChange = useCallback((c) => {
+    if (Date.now() - focusedAt.current < 1500) return;
+    setMapCenter(c);
+  }, []);
+
+  const focusPlace = useCallback((p) => {
+    focusedAt.current = Date.now();
+    setActivePlaceId(p.id);
+    // Zoom in on the place and keep it clear of the bottom sheet on phones.
+    const sheet = document.querySelector('section[data-snap]');
+    // (The sheet is position: fixed, so offsetParent can't tell if it's shown.)
+    const top = sheet && sheet.getClientRects().length ? sheet.getBoundingClientRect().top : window.innerHeight;
+    const offsetY = Math.max(0, (window.innerHeight - top) / 2);
+    setPanTarget({ lat: p.lat, lng: p.lng, zoom: 16, offsetY, key: Date.now() });
+  }, []);
+
+  const openExplorePlace = useCallback(
+    (p) => {
+      focusPlace(p);
+      setExploreOpenId(p.id);
+      askSheet('half');
+    },
+    [focusPlace, askSheet]
+  );
+
+  const sharePlace = useCallback(
+    async (p) => {
+      const q = new URLSearchParams({ view: 'explore', a: `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`, an: p.name });
+      const url = `${window.location.origin}/?${q}`;
+      const text = `Let's go to ${p.name}`;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: p.name, text, url });
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') return;
+        }
+      }
+      try {
+        await navigator.clipboard.writeText(`${text} ${url}`);
+        showToast('Link copied');
+      } catch {
+        window.prompt('Copy this link', url);
+      }
+    },
+    [showToast]
+  );
+
+  useEffect(() => {
+    if (!exploring) setExploreOpenId(null);
+  }, [exploring]);
+
+  // Places we already have photos and reviews for (saved; no search spent).
+  const near = a || userPos || mapCenter;
+  const nearKey = near ? `${near.lat.toFixed(1)},${near.lng.toFixed(1)}` : '';
+  useEffect(() => {
+    if (!exploring) return;
+    const controller = new AbortController();
+    const q = near ? `&lat=${near.lat}&lng=${near.lng}` : '';
+    fetch(`/api/place-info?featured=1${q}`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((d) => setFeatured(d.places || []))
+      .catch(() => {});
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exploring, nearKey]);
+
+  // Opening Explore frames the radius around you, clear of the sheet.
+  const framed = useRef(false);
+  useEffect(() => {
+    if (!exploring) {
+      framed.current = false;
+      return;
+    }
+    if (framed.current || !searchCenter) return;
+    framed.current = true;
+    const t = setTimeout(() => {
+      const sheet = document.querySelector('section[data-snap]');
+      const top = sheet && sheet.getClientRects().length ? sheet.getBoundingClientRect().top : window.innerHeight;
+      const offsetY = Math.max(0, (window.innerHeight - top) / 2);
+      setPanTarget({ lat: searchCenter.lat, lng: searchCenter.lng, zoom: NEAR_ZOOM[nearKm] || 13, offsetY, key: Date.now() });
+    }, 400); // after the sheet settles
+    return () => clearTimeout(t);
+  }, [exploring, searchCenter, nearKm]);
+
+  // In Explore the map shows the saved spots too.
+  const mapPlaces = useMemo(
+    () => (exploring && featured?.length ? [...featured, ...(placesData || [])] : placesData),
+    [exploring, featured, placesData]
+  );
+  useEffect(() => {
+    setExploreOpenId((id) => (id && placesData?.some((p) => p.id === id) ? id : null));
+  }, [placesData]);
+
   const selectPlace = useCallback(
     (id) => {
+      if (exploring) {
+        const p = mapPlaces?.find((x) => x.id === id);
+        if (p) focusPlace(p);
+        return;
+      }
       setActivePlaceId(id);
       setOpenPlaceId(id);
       // Lower the sheet so the place card (photos, reviews) has the map's room.
@@ -471,7 +600,7 @@ export default function Home() {
       const p = placesData?.find((x) => x.id === id);
       if (p) setPanTarget({ lat: p.lat, lng: p.lng });
     },
-    [placesData, askSheet]
+    [placesData, askSheet, exploring, focusPlace, mapPlaces]
   );
 
   const openPlace = openPlaceId ? placesData?.find((x) => x.id === openPlaceId) || null : null;
@@ -492,11 +621,6 @@ export default function Home() {
     const msg = await f.shareInvite();
     if (msg) showToast(msg);
   }, [f, showToast]);
-
-  const changeMode = useCallback((m) => {
-    setMode(m);
-    setHint(null);
-  }, []);
 
   const flagMissing = (text, selector) => {
     setHint(text);
@@ -539,9 +663,13 @@ export default function Home() {
   };
 
   const backToSearch = () => {
-    setSubmitted(false);
+    setMode('nearby');
+    setQuery('');
+    setHint(null);
     setTab('search');
-    askSheet('tall');
+    setSubmitted(true);
+    setExploreOpenId(null);
+    askSheet('half');
   };
 
   const explore = () => {
@@ -569,17 +697,90 @@ export default function Home() {
     onway: { can: detour < 15, run: () => setDetour((d) => DETOUR_MIN[DETOUR_MIN.indexOf(d) + 1] || d) },
   }[mode];
 
+  useEffect(() => {
+    if (!query) setSearchDraft('');
+  }, [query]);
+
+  const openSearch = useCallback(() => {
+    setSearchOpen(true);
+    askSheet('full');
+  }, [askSheet]);
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setEditingFrom(false);
+    setExploreOpenId(null);
+    document.activeElement?.blur?.();
+    askSheet('half');
+  }, [askSheet]);
+  useEffect(() => {
+    if (tab === 'explore') setSearchOpen(false);
+  }, [tab]);
+
+  // Full-screen search title: the chip they picked, else the question.
+  const picked = cats.length && cats.length < CATEGORIES.length ? CATEGORIES.filter((c) => cats.includes(c.id)) : [];
+  const searchTitle =
+    picked.length && picked.length <= 2 ? picked.map((c) => c.label).join(' & ') : 'Where do you want to go?';
+
+  const searchBar = (
+    <form
+      className={`${styles.freeText} ${styles.searchPill}`}
+      style={{ flex: 1 }}
+      role="search"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setExploreOpenId(null);
+        setQuery(searchDraft.trim().slice(0, 60));
+        e.currentTarget.querySelector('input')?.blur();
+      }}
+    >
+      <SearchIcon />
+      <input
+        type="search"
+        className={styles.freeInput}
+        value={searchDraft}
+        onChange={(e) => setSearchDraft(e.target.value.slice(0, 60))}
+        onFocus={() => !searchOpen && openSearch()}
+        aria-label={`Search for nearby ${lookingFor(cats, '')}`}
+        enterKeyHint="search"
+        autoComplete="off"
+      />
+      {!searchDraft && <SearchHint cats={cats} />}
+      {searchDraft && (
+        <button type="button" className={styles.freeClear} aria-label="Clear" onClick={() => setQuery('') || setSearchDraft('')}>
+          ×
+        </button>
+      )}
+    </form>
+  );
+
   /* ---------- Pieces shared by the desktop sidebar and the phone sheet ---------- */
   const header = (
-    <div className={styles.sheetHead}>
-      {submitted && (
+    <div className={`${styles.sheetHead} ${exploring && tab !== 'explore' ? styles.sheetHeadSearch : ''}`}>
+      {submitted && !exploring && (
         <button type="button" className={`${styles.back} hw-press`} onClick={backToSearch} aria-label="Back to search">
           <BackIcon />
         </button>
       )}
-      <h1 key={submitted ? resultsTitle : 'form'} className={styles.title}>
-        {submitted ? resultsTitle : 'Find somewhere to go'}
-      </h1>
+      {exploring && tab !== 'explore' ? (
+        searchOpen ? (
+          <div className={styles.searchHead}>
+            <div className={styles.searchTop}>
+              <button type="button" className={`${styles.back} hw-press`} onClick={closeSearch} aria-label="Close search">
+                <BackIcon />
+              </button>
+              <h1 className={styles.title}>{searchTitle}</h1>
+              <ThemeToggle />
+            </div>
+            {searchBar}
+          </div>
+        ) : (
+          searchBar
+        )
+      ) : (
+        <h1 key={submitted ? resultsTitle : 'form'} className={styles.title}>
+          {exploring ? 'Explore' : submitted ? resultsTitle : 'Find somewhere to go'}
+        </h1>
+      )}
       {submitted && (
         <div className={styles.headActions}>
           {mode === 'halfway' && a && b && routes && hub && <SaveButton a={a} b={b} hub={hub} />}
@@ -697,21 +898,10 @@ export default function Home() {
     <div className={styles.form}>
       <div className={`${styles.block} hw-rise`}>{fromRow}</div>
 
-      <section className={`${styles.block} hw-rise`} style={{ animationDelay: '50ms' }}>
-        <h2 className={styles.sectionLabel}>Where should we look?</h2>
-        <ModeSwitch value={mode} onChange={changeMode} />
-        {/* The per-mode card (distance / + Add location / detour) is parked for later. */}
-      </section>
 
-      <section className={`${styles.block} hw-rise`} style={{ animationDelay: '100ms' }}>
-        <h2 className={styles.sectionLabel}>What are you looking for?</h2>
-        <CategoryChips
-          selected={query.trim() ? [] : cats}
-          onToggle={toggleCat}
-          primary={PRIMARY_CATS}
-          moreOpen={moreOpen || !!query}
-          onMore={() => setMoreOpen((o) => !o)}
-        />
+      {(moreOpen || !!query) && (
+      <section className={`${styles.block} hw-rise`}>
+        {/* The category chips float on the map (mapChips below); "More" opens this. */}
         {(moreOpen || !!query) && (
         <form
           className={`${styles.freeText} ${styles.slideIn}`}
@@ -741,6 +931,7 @@ export default function Home() {
         </form>
         )}
       </section>
+      )}
     </div>
   );
 
@@ -863,7 +1054,60 @@ export default function Home() {
     </div>
   );
 
-  const body = submitted ? results : form;
+  const exploreBody = (
+    <div className={styles.results}>
+      <ExploreSpots
+        featured={featured}
+        places={placesData}
+        loading={placesLoading}
+        error={placesError}
+        cats={cats}
+        onCats={(next) => {
+          setQuery('');
+          setCats(next);
+        }}
+        title="Spots near you"
+        activeId={activePlaceId}
+        onFocus={focusPlace}
+        openId={exploreOpenId}
+        onOpen={openExplorePlace}
+        onClose={() => setExploreOpenId(null)}
+        onShare={sharePlace}
+        canWiden={widen.can}
+        onWiden={widen.run}
+        onExpand={(open) => (tab !== 'explore' ? (open ? openSearch() : closeSearch()) : askSheet(open ? 'full' : 'half'))}
+        expanded={searchOpen}
+        seeAllOpensPage={tab !== 'explore'}
+      />
+    </div>
+  );
+
+  const body = exploring
+    ? exploreBody
+    : submitted
+      ? results
+      : form;
+
+  // Category chips float on the map, above the sheet, in Search and Explore.
+  const mapChips = exploring ? (
+    exploreOpenId || searchOpen ? null : (
+      <MeetChips
+        selected={cats}
+        onChange={(next) => {
+          setQuery('');
+          setCats(next);
+        }}
+      />
+    )
+  ) : submitted ? null : (
+    <CategoryChips
+      selected={query.trim() ? [] : cats}
+      onToggle={toggleCat}
+      primary={PRIMARY_CATS}
+      moreOpen={moreOpen || !!query}
+      onMore={() => setMoreOpen((o) => !o)}
+    />
+  );
 
   const footer = submitted ? null : (
     <div className={styles.ctaWrap}>
@@ -887,7 +1131,7 @@ export default function Home() {
       : searchCenter?.isHub
         ? 'from the meeting point'
         : searchCenter?.isStart
-          ? 'from your starting point'
+          ? a ? 'from your starting point' : 'from you'
           : 'from the map centre';
 
   return (
@@ -909,14 +1153,15 @@ export default function Home() {
           midpoint={midpoint}
           hub={mode === 'halfway' ? hub : null}
           radiusKm={radius}
-          places={placesData}
+          nearCircle={mode === 'nearby' && submitted && searchCenter ? { ...searchCenter, km: nearKm } : null}
+          places={mapPlaces}
           activePlaceId={activePlaceId}
           onPlaceHover={setActivePlaceId}
           onPlaceSelect={selectPlace}
-          openPlace={openPlace}
+          openPlace={exploring ? null : openPlace}
           onPopupClose={() => setOpenPlaceId(null)}
           panTarget={panTarget}
-          onCenterChange={setMapCenter}
+          onCenterChange={onCenterChange}
           hubCandidates={mode === 'halfway' ? hubs : null}
           onHubSelect={setHubId}
           distanceNote={distanceNote}
@@ -932,10 +1177,20 @@ export default function Home() {
             <ThemeToggle />
           </div>
         </div>
+        {mapChips && <div className={`${styles.mapChips} ${styles.chipRow}`}>{mapChips}</div>}
       </div>
 
       {/* Phone: bottom sheet over the full-screen map, above the tab bar */}
-      <BottomSheet header={header} footer={footer} snap={sheet.snap} snapKey={sheet.key}>
+      <BottomSheet
+        header={header}
+        footer={footer}
+        snap={sheet.snap}
+        snapKey={sheet.key}
+        fit={!exploring && !submitted}
+        fitHalf={exploring && tab !== 'explore' && !exploreOpenId && !searchOpen}
+        page={searchOpen}
+        above={mapChips && <div className={styles.chipRow}>{mapChips}</div>}
+      >
         {body}
       </BottomSheet>
 
@@ -947,5 +1202,37 @@ export default function Home() {
         </div>
       )}
     </div>
+  );
+}
+
+// Words the search hint rolls through, by the chip that's on.
+const HINT_WORDS = {
+  restaurant: ['food', 'biryani', 'pizza', 'thali', 'dinner'],
+  cafe: ['cafés', 'coffee', 'chai', 'desserts', 'brunch'],
+  bar: ['bars', 'pubs', 'drinks', 'live music'],
+  fastfood: ['quick bites', 'burgers', 'shawarma', 'momos'],
+  park: ['parks', 'walks', 'open spaces'],
+};
+const HINT_DEFAULT = ['food', 'cafés', 'parks', 'hangouts', 'desserts'];
+
+/** "Search for nearby ___": the last word rolls up every couple of seconds. */
+function SearchHint({ cats }) {
+  const words = (cats.length === 1 && HINT_WORDS[cats[0]]) || (cats.length ? cats.flatMap((c) => HINT_WORDS[c] || []) : []);
+  const list = words.length ? words : HINT_DEFAULT;
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    setI(0);
+    const t = setInterval(() => setI((n) => n + 1), 2400);
+    return () => clearInterval(t);
+  }, [list.join()]);
+  return (
+    <span className={styles.searchHint} aria-hidden="true">
+      Search for nearby{' '}
+      <span className={styles.searchHintBox}>
+        <span key={i} className={styles.searchHintWord}>
+          {list[i % list.length]}
+        </span>
+      </span>
+    </span>
   );
 }

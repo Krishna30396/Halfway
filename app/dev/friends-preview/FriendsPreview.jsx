@@ -3,12 +3,12 @@
 import { FriendsWidgetView } from '@/components/FriendsWidget';
 
 const people = {
-  u1: { id: 'u1', username: 'paani', display_name: 'paani' },
-  u2: { id: 'u2', username: 'vashishta', display_name: 'VASHISHTA' },
+  u1: { id: 'u1', username: 'paani', display_name: 'paani', avatar: 'f2' },
+  u2: { id: 'u2', username: 'vashishta', display_name: 'VASHISHTA', avatar: 'f6' },
   u3: { id: 'u3', username: 'meera', display_name: 'Meera' },
 };
 
-const SAMPLE = {
+export const SAMPLE = {
   configured: true,
   loaded: true,
   user: { id: 'me' },

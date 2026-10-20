@@ -1,0 +1,169 @@
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 22px 16px 18px;
+}
+
+.heroAvatar {
+  margin-bottom: 8px;
+  background: var(--ember-soft);
+  color: var(--ember);
+  font-weight: 800;
+  box-shadow: 0 0 0 4px var(--panel), 0 0 0 6px var(--ember-soft);
+}
+
+.name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.handle {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ember);
+}
+
+.nameForm {
+  width: 100%;
+  text-align: left;
+}
+
+/* ---- Avatar picker ---- */
+.avatarGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 10px;
+  justify-items: center;
+}
+
+.pick,
+.pickOn {
+  padding: 3px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: none;
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease-out), border-color var(--t-fast);
+}
+
+.pick:active,
+.pickOn:active {
+  transform: scale(0.92);
+}
+
+.pickOn {
+  border-color: var(--ember);
+}
+
+.letter {
+  background: var(--ember-soft);
+  color: var(--ember);
+  font-weight: 800;
+}
+
+.note {
+  margin: 8px 2px 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ---- Defaults ---- */
+.rowLabel {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chips + .rowLabel {
+  margin-top: 16px;
+}
+
+.chip,
+.chipOn {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: var(--r-pill);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chip {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--contour-strong);
+}
+
+.chipOn {
+  background: var(--ember);
+  color: var(--on-ember);
+  border: 1px solid var(--ember);
+}
+
+/* ---- Location / links ---- */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rowTitle {
+  margin: 0;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.rowSub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.links {
+  padding: 4px 16px;
+}
+
+.link {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--contour);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.link:last-child {
+  border-bottom: 0;
+}
+
+.link span {
+  color: var(--muted);
+  font-size: 20px;
+}
+
+.danger {
+  color: var(--color-danger, #d64545);
+}

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useFriends } from '@/lib/useFriends';
+import Avatar from './Avatar';
 import { displayName, initialOf } from '@/lib/social';
 import NotificationToggle from './NotificationToggle';
 import EmailAlerts from './EmailAlerts';
@@ -12,7 +13,7 @@ import { CloseIcon, PeopleIcon, PlusIcon } from './meet/icons';
 import s from './FriendsWidget.module.css';
 
 // Full-screen flows where a floating button would get in the way.
-const HIDDEN_ON = [/^\/friends/, /^\/meet\//, /^\/auth\//, /^\/dev\//];
+const HIDDEN_ON = [/^\/friends/, /^\/profile/, /^\/meet\//, /^\/auth\//, /^\/dev\//];
 
 // The hidden check runs before any data loading: on /friends the page loads
 // its own copy, and loading here too doubled every query and realtime channel.
@@ -187,7 +188,7 @@ export function FriendsWidgetView({ f, pathname, initialOpen = false }) {
                         const waiting = f.needsMe(m);
                         return (
                           <li key={m.id} className={s.item}>
-                            <span className={s.avatar}>{initialOf(f.people[other])}</span>
+                            <Avatar person={f.people[other]} className={s.avatar} />
                             <span className={s.info}>
                               <span className={s.name}>{displayName(f.people[other])}</span>
                               <span className={s.meta}>
@@ -217,7 +218,7 @@ export function FriendsWidgetView({ f, pathname, initialOpen = false }) {
                     <ul className={s.list}>
                       {f.incoming.map((r) => (
                         <li key={r.id} className={s.item}>
-                          <span className={`${s.avatar} ${s.avatarInk}`}>{initialOf(f.people[r.requester])}</span>
+                          <Avatar person={f.people[r.requester]} className={`${s.avatar} ${s.avatarInk}`} />
                           <span className={s.info}>
                             <span className={s.name}>{displayName(f.people[r.requester])}</span>
                             <span className={s.meta}>Wants to be friends</span>
@@ -259,7 +260,7 @@ export function FriendsWidgetView({ f, pathname, initialOpen = false }) {
                         const pending = busy === id || opening === id;
                         return (
                           <li key={fr.id} className={s.item}>
-                            <span className={`${s.avatar} ${s.avatarInk}`}>{initialOf(f.people[id])}</span>
+                            <Avatar person={f.people[id]} className={`${s.avatar} ${s.avatarInk}`} />
                             <span className={s.info}>
                               <span className={s.name}>{displayName(f.people[id])}</span>
                               {f.people[id]?.username && (

@@ -71,7 +71,7 @@ export default function TabBar({ active = 'search', onSearch, onExplore }) {
         </button>
       </div>
       <Tab id="meetups" label="Meetups" href="/friends#meetups" />
-      <Tab id="profile" label="Profile" href="/friends" />
+      <Tab id="profile" label="Profile" href="/profile" />
     </nav>
   );
 }

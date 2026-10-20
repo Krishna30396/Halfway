@@ -80,9 +80,14 @@ function PanTo({ target }) {
   const map = useMap();
   useEffect(() => {
     if (!target) return;
-    if (target.zoom) map.setView([target.lat, target.lng], target.zoom);
+    if (target.offsetY) {
+      // Centre the point in the part of the map left visible above the sheet.
+      const z = target.zoom || map.getZoom();
+      const at = map.unproject(map.project([target.lat, target.lng], z).add([0, target.offsetY]), z);
+      map.setView(at, z, { animate: true });
+    } else if (target.zoom) map.setView([target.lat, target.lng], target.zoom);
     else map.panTo([target.lat, target.lng]);
-  }, [map, target?.lat, target?.lng, target?.zoom]);
+  }, [map, target?.lat, target?.lng, target?.zoom, target?.offsetY, target?.key]);
   return null;
 }
 
@@ -111,6 +116,7 @@ export default function MapView({
   midpoint,
   hub,
   radiusKm,
+  nearCircle,
   places,
   activePlaceId,
   onPlaceHover,
@@ -162,6 +168,20 @@ export default function MapView({
 
       {a && <Marker position={[a.lat, a.lng]} icon={endIcon('Start A')} />}
       {b && <Marker position={[b.lat, b.lng]} icon={endIcon('Start B')} />}
+
+      {nearCircle && (
+        <Circle
+          center={[nearCircle.lat, nearCircle.lng]}
+          radius={nearCircle.km * 1000}
+          pathOptions={{
+            color: '#F2541B',
+            weight: 1.5,
+            dashArray: '6 6',
+            fillColor: '#F2541B',
+            fillOpacity: 0.06,
+          }}
+        />
+      )}
 
       {hub && radiusKm > 0 && (
         <Circle

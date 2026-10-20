@@ -19,12 +19,31 @@
     box-shadow: 0 -2px 24px var(--shadow);
     transition: height var(--t-slow) var(--ease-out);
     will-change: height;
-    overflow: hidden;
     animation: sheet-in var(--t-slow) var(--ease-out) both;
   }
 
   .dragging {
     transition: none;
+  }
+
+  /* Full-screen search: a plain white page. */
+  .page {
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .page .grip {
+    cursor: auto;
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+
+  /* Floats just above the sheet's top edge (category chips). */
+  .above {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    pointer-events: none;
   }
 
   .grip {

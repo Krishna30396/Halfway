@@ -14,7 +14,6 @@ import s from './Social.module.css';
 export default function UsernameSetup({ onDone, compact = false }) {
   const { user } = useAuth();
   const [uname, setUname] = useState('');
-  const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -44,7 +43,6 @@ export default function UsernameSetup({ onDone, compact = false }) {
       const { error: saveError } = await supabase.from('profiles').upsert({
         id: userId,
         username,
-        display_name: name.trim() || null,
         updated_at: new Date().toISOString(),
       });
       if (saveError) {
@@ -77,17 +75,6 @@ export default function UsernameSetup({ onDone, compact = false }) {
           autoComplete="username"
           maxLength={21}
           required
-        />
-      </div>
-      <div className={s.field}>
-        <label className={s.label} htmlFor="setup-name">Your name (optional)</label>
-        <input
-          id="setup-name"
-          className={s.input}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Krishna"
-          maxLength={40}
         />
       </div>
       {error && <p className={s.error} style={{ marginTop: 12 }}>{error}</p>}

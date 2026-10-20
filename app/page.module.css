@@ -761,3 +761,20 @@
   from { opacity: 0; transform: translateY(-8px); max-height: 0; }
   to   { opacity: 1; transform: none; max-height: 400px; }
 }
+
+/* Explore header: "?" shows the swipe tips again */
+.tipsBtn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+}

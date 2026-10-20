@@ -16,6 +16,7 @@ import BottomSheet from '@/components/BottomSheet';
 import { MeetChips } from '@/components/meet/FairSpots';
 import AreaGuide from '@/components/AreaGuide';
 import ExploreSpots from '@/components/ExploreSpots';
+import ExploreFlow from '@/components/explore/ExploreFlow';
 import ThemeToggle from '@/components/ThemeToggle';
 import AuthButton from '@/components/AuthButton';
 import SaveButton from '@/components/SaveButton';
@@ -42,10 +43,10 @@ const MapView = dynamic(() => import('@/components/MapView'), {
 
 const DEFAULT_CATS = ['cafe'];
 const PRIMARY_CATS = ['cafe', 'restaurant', 'sport'];
-const NEAR_KM = [1, 3, 5];
+const NEAR_KM = [1, 3, 5, 8];
 const DETOUR_MIN = [5, 10, 15];
 const MODE_SUFFIX = { halfway: 'halfway', nearby: 'nearby', onway: 'on the way' };
-const NEAR_ZOOM = { 1: 15, 3: 13, 5: 12 };
+const NEAR_ZOOM = { 1: 15, 3: 13, 5: 12, 8: 11 };
 const shortName = (s) => (s || '').split(',')[0].trim();
 const capitalise = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -83,6 +84,18 @@ export default function Home() {
   // Search is nearby-only; halfway / on the way live on the meetup page.
   const [mode, setMode] = useState('nearby');
   const [nearKm, setNearKm] = useState(3);
+  // Cuisine words from an Explore pick, narrowing the chips' places.
+  const [cuisine, setCuisine] = useState([]);
+  // Desktop shows the sidebar, phones the sheet. Explore's deck keeps state,
+  // so only the visible one is mounted.
+  const [wide, setWide] = useState(null);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 769px)');
+    const on = () => setWide(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
   const [detour, setDetour] = useState(10);
   const [query, setQuery] = useState('');
   // Search opens straight on the spots view (the same one Explore uses).
@@ -172,7 +185,7 @@ export default function Home() {
     if (p.get('view') === 'explore') {
       setTab('explore');
       setSubmitted(true);
-      setSheet({ snap: 'half', key: 1 });
+      setSheet({ snap: 'full', key: 1 });
     } else if (pa) {
       // A shared link opens straight on its results.
       setSubmitted(true);
@@ -424,6 +437,14 @@ export default function Home() {
           list = list.filter((p) =>
             `${p.name || ''} ${p.cuisine || ''}`.toLowerCase().includes(nameFilter)
           );
+        } else if (cuisine.length) {
+          // Only narrow when enough places are tagged; OSM cuisine tags are patchy.
+          const words = cuisine.flatMap((w) => [w, w.replace(/_/g, ' ')]);
+          const hits = list.filter((p) => {
+            const hay = `${p.name || ''} ${p.cuisine || ''}`.toLowerCase();
+            return words.some((w) => hay.includes(w));
+          });
+          if (hits.length >= 3) list = hits;
         }
         setPlacesData(list);
       })
@@ -433,7 +454,7 @@ export default function Home() {
 
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [specKey, fetchCats.join(','), nameFilter]);
+  }, [specKey, fetchCats.join(','), nameFilter, cuisine.join(',')]);
 
   /* ---------- Keep the URL in sync ---------- */
   useEffect(() => {
@@ -457,9 +478,10 @@ export default function Home() {
     if (mode === 'onway') p.set('dt', String(detour));
     if (cats.length) p.set('cat', cats.join(','));
     if (query.trim()) p.set('q', query.trim());
+    if (tab === 'explore') p.set('view', 'explore');
     const qs = p.toString();
     window.history.replaceState(null, '', qs ? `/?${qs}` : '/');
-  }, [restored, a, b, mode, routes, routeIndex, hubId, radius, nearKm, detour, cats, query]);
+  }, [restored, a, b, mode, routes, routeIndex, hubId, radius, nearKm, detour, cats, query, tab]);
 
   /* ---------- Actions ---------- */
   const toggleCat = useCallback((id) => {
@@ -663,6 +685,7 @@ export default function Home() {
   };
 
   const backToSearch = () => {
+    setCuisine([]);
     setMode('nearby');
     setQuery('');
     setHint(null);
@@ -673,13 +696,30 @@ export default function Home() {
   };
 
   const explore = () => {
+    setCuisine([]);
     setMode('nearby');
     setQuery('');
     setHint(null);
     setTab('explore');
     setSubmitted(true);
-    const c = a || mapCenter;
-    if (c && a) setPanTarget({ lat: c.lat, lng: c.lng, zoom: NEAR_ZOOM[nearKm] || 13 });
+    setExploreOpenId(null);
+    // The swipe deck is a full white page.
+    askSheet('full');
+  };
+
+  // A pick from Explore opens Search on its chips, cuisine and distance.
+  // Veg, budget and vibe can't filter places yet (no data for them).
+  const fromDeck = (r) => {
+    setMode('nearby');
+    setHint(null);
+    setTab('search');
+    setSubmitted(true);
+    setExploreOpenId(null);
+    setQuery('');
+    setSearchDraft('');
+    setCats(r.cats);
+    setCuisine(r.cuisine || []);
+    if (NEAR_KM.includes(r.nearKm)) setNearKm(r.nearKm);
     askSheet('half');
   };
 
@@ -693,7 +733,7 @@ export default function Home() {
 
   const widen = {
     halfway: { can: radius < 25, run: () => setRadius((r) => Math.min(r + 5, 25)) },
-    nearby: { can: nearKm < 5, run: () => setNearKm((k) => NEAR_KM[NEAR_KM.indexOf(k) + 1] || k) },
+    nearby: { can: nearKm < 8, run: () => setNearKm((k) => NEAR_KM[NEAR_KM.indexOf(k) + 1] || k) },
     onway: { can: detour < 15, run: () => setDetour((d) => DETOUR_MIN[DETOUR_MIN.indexOf(d) + 1] || d) },
   }[mode];
 
@@ -729,6 +769,7 @@ export default function Home() {
       onSubmit={(e) => {
         e.preventDefault();
         setExploreOpenId(null);
+        setCuisine([]);
         setQuery(searchDraft.trim().slice(0, 60));
         e.currentTarget.querySelector('input')?.blur();
       }}
@@ -780,6 +821,19 @@ export default function Home() {
         <h1 key={submitted ? resultsTitle : 'form'} className={styles.title}>
           {exploring ? 'Explore' : submitted ? resultsTitle : 'Find somewhere to go'}
         </h1>
+      )}
+      {tab === 'explore' && (
+        <>
+          <button
+            type="button"
+            className={`${styles.tipsBtn} hw-press`}
+            onClick={() => window.dispatchEvent(new Event('hw:explore-tips'))}
+            aria-label="How swiping works"
+          >
+            ?
+          </button>
+          <ThemeToggle />
+        </>
       )}
       {submitted && (
         <div className={styles.headActions}>
@@ -1064,9 +1118,10 @@ export default function Home() {
         cats={cats}
         onCats={(next) => {
           setQuery('');
+          setCuisine([]);
           setCats(next);
         }}
-        title="Spots near you"
+        title={cuisine.length ? 'Your picks nearby' : 'Spots near you'}
         activeId={activePlaceId}
         onFocus={focusPlace}
         openId={exploreOpenId}
@@ -1082,19 +1137,26 @@ export default function Home() {
     </div>
   );
 
+  const deckBody = (
+    <ExploreFlow onPick={fromDeck} />
+  );
+
   const body = exploring
-    ? exploreBody
+    ? tab === 'explore'
+      ? deckBody
+      : exploreBody
     : submitted
       ? results
       : form;
 
   // Category chips float on the map, above the sheet, in Search and Explore.
   const mapChips = exploring ? (
-    exploreOpenId || searchOpen ? null : (
+    exploreOpenId || searchOpen || tab === 'explore' ? null : (
       <MeetChips
         selected={cats}
         onChange={(next) => {
           setQuery('');
+          setCuisine([]);
           setCats(next);
         }}
       />
@@ -1139,7 +1201,7 @@ export default function Home() {
       {/* Desktop: sidebar */}
       <aside className={styles.panel}>
         {header}
-        <div className={styles.panelBody}>{body}</div>
+        <div className={styles.panelBody}>{tab === 'explore' && !wide ? null : body}</div>
         {footer && <div className={styles.panelFoot}>{footer}</div>}
       </aside>
 
@@ -1188,10 +1250,10 @@ export default function Home() {
         snapKey={sheet.key}
         fit={!exploring && !submitted}
         fitHalf={exploring && tab !== 'explore' && !exploreOpenId && !searchOpen}
-        page={searchOpen}
+        page={searchOpen || tab === 'explore'}
         above={mapChips && <div className={styles.chipRow}>{mapChips}</div>}
       >
-        {body}
+        {tab === 'explore' && wide !== false ? null : body}
       </BottomSheet>
 
       <TabBar active={tab} onSearch={backToSearch} onExplore={explore} />

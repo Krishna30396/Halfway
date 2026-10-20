@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, memo } from 'react';
 import {
   MapContainer,
   Polyline,
@@ -15,8 +15,10 @@ import { placeholderFor } from '@/lib/placeholders';
 import PlaceImage from './PlaceImage';
 import PlaceDetails from './PlaceDetails';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import VectorBaseLayer from './VectorBaseLayer';
+import 'leaflet/dist/leaflet.css';
+import { useThemeMode } from '@/lib/mapStyle';
+import { buildLeafletTrafficSegments, TRAFFIC_COLORS, TRAFFIC_CONFIG } from '@/lib/traffic';
 
 const endIcon = (label) =>
   L.divIcon({
@@ -107,7 +109,39 @@ function CenterTracker({ onChange }) {
   return null;
 }
 
-export default function MapView({
+// Debounced invalidation of map size on layout change or window resize
+function MapResizer() {
+  const map = useMap();
+  useEffect(() => {
+    let timer = null;
+    const triggerResize = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        map.invalidateSize({ pan: false });
+      }, 150);
+    };
+
+    triggerResize();
+    window.addEventListener('resize', triggerResize);
+
+    const container = map.getContainer();
+    const ro = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(triggerResize)
+      : null;
+    if (ro && container) {
+      ro.observe(container);
+    }
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', triggerResize);
+      if (ro) ro.disconnect();
+    };
+  }, [map]);
+  return null;
+}
+
+function MapView({
   a,
   b,
   routes,
@@ -130,6 +164,9 @@ export default function MapView({
   distanceNote,
 }) {
   const popupRef = useRef(null);
+  const mode = useThemeMode();
+  const isNight = mode === 'dark';
+
   const center = useMemo(() => {
     if (midpoint) return [midpoint[0], midpoint[1]];
     if (a) return [a.lat, a.lng];
@@ -145,6 +182,7 @@ export default function MapView({
       attributionControl={true}
     >
       <VectorBaseLayer />
+      <MapResizer />
       <FitBounds a={a} b={b} hub={hub} />
       <PanTo target={panTarget} />
       <CenterTracker onChange={onCenterChange} />
@@ -154,12 +192,39 @@ export default function MapView({
           <Polyline
             key={`alt-${i}`}
             positions={r.coords}
-            pathOptions={{ color: '#A8A29C', weight: 4, opacity: 0.75 }}
+            pathOptions={{ color: isNight ? '#242A48' : '#A8A29C', weight: 4, opacity: isNight ? 0.8 : 0.75 }}
             eventHandlers={{ click: () => onSelectRoute?.(i) }}
           />
         )
       )}
-      {routes?.[routeIndex] && (
+      {routes?.[routeIndex] && isNight && (
+        <>
+          <Polyline
+            positions={routes[routeIndex].coords}
+            pathOptions={{
+              color: TRAFFIC_COLORS.CASING,
+              weight: TRAFFIC_CONFIG.CASING_WIDTH,
+              opacity: 1,
+              lineCap: 'round',
+              lineJoin: 'round',
+            }}
+          />
+          {buildLeafletTrafficSegments(routes[routeIndex].coords).map((seg, sIdx) => (
+            <Polyline
+              key={`traffic-seg-${sIdx}`}
+              positions={seg.positions}
+              pathOptions={{
+                color: seg.color,
+                weight: TRAFFIC_CONFIG.LINE_WIDTH,
+                opacity: 1,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+            />
+          ))}
+        </>
+      )}
+      {routes?.[routeIndex] && !isNight && (
         <Polyline
           positions={routes[routeIndex].coords}
           pathOptions={{ color: '#F2541B', weight: 5, opacity: 0.95 }}
@@ -301,3 +366,5 @@ export default function MapView({
     </MapContainer>
   );
 }
+
+export default memo(MapView);

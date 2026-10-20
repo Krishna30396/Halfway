@@ -7,7 +7,7 @@ import { useThemeMode } from '@/lib/mapStyle';
 // CSS variables, so the theme's colours are resolved to real values here.
 const FALLBACK = {
   light: { ember: '#F2541B', ink: '#8C2B0C', onInk: '#FFFFFF', paper: '#FCFBFA' },
-  dark: { ember: '#FF7A45', ink: '#FFC9AE', onInk: '#17171A', paper: '#0E0E10' },
+  dark: { ember: '#F2541B', ink: '#FFC9AE', onInk: '#17171A', paper: '#0E0E10' },
 };
 
 export function readTokens(mode) {

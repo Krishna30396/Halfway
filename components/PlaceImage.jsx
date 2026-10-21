@@ -5,6 +5,10 @@ import { placeholderFor } from '@/lib/placeholders';
 import { CATEGORY_COLORS } from '@/lib/categories';
 
 function buildPhotoUrl(place) {
+  // Google's cover photo (a base link; Google serves any size from it).
+  if (place.photo?.startsWith('http')) {
+    return /googleusercontent\.com|ggpht\.com/.test(place.photo) ? `${place.photo}=w240-h240-p-k-no` : place.photo;
+  }
   if (place.imageTag?.startsWith('http')) return place.imageTag;
   if (place.wikimediaCommons) {
     const clean = place.wikimediaCommons.replace(/^File:/, '').replace(/ /g, '_');
@@ -38,7 +42,7 @@ export default function PlaceImage({ place, size = 56, className, style }) {
       return;
     }
     setFailed(true);
-  }, [place.imageTag, place.wikimediaCommons, place.wikidata]);
+  }, [place.photo, place.imageTag, place.wikimediaCommons, place.wikidata]);
 
   const placeholder = placeholderFor(place.category);
   // A wash of the category colour over the surface works in light and dark.
@@ -89,6 +93,7 @@ export default function PlaceImage({ place, size = 56, className, style }) {
       src={src}
       alt=""
       loading="lazy"
+      referrerPolicy="no-referrer"
       className={className}
       onError={() => setFailed(true)}
       style={{

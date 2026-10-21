@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './PlaceDetails.module.css';
 
@@ -49,7 +49,9 @@ export default function PlaceDetails({ place, fallback, onResize, savedOnly = fa
   const [tab, setTab] = useState('photos');
   const [menu, setMenu] = useState(null); // null | 'loading' | { photos } | { status }
   const [allReviews, setAllReviews] = useState(false);
+  const [revs, setRevs] = useState(null); // null | 'loading' | { reviews } | { status }
   const [viewer, setViewer] = useState(null); // { list, index }
+  const touchX = useRef(null);
 
   useEffect(() => {
     let live = true;
@@ -57,6 +59,7 @@ export default function PlaceDetails({ place, fallback, onResize, savedOnly = fa
     setTab('photos');
     setMenu(null);
     setAllReviews(false);
+    setRevs(null);
     load(place, savedOnly).then((d) => live && setRes(d));
     return () => {
       live = false;
@@ -65,15 +68,27 @@ export default function PlaceDetails({ place, fallback, onResize, savedOnly = fa
 
   useEffect(() => {
     onResize?.();
-  }, [res, tab, menu, allReviews]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [res, tab, menu, allReviews, revs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The next two photos load while you look at this one, so swiping is instant.
+  useEffect(() => {
+    if (!viewer) return;
+    for (const i of [viewer.index + 1, viewer.index + 2]) {
+      const p = viewer.list[i];
+      if (p) new Image().src = p.full;
+    }
+  }, [viewer]);
+
+  const step = (d) =>
+    setViewer((v) => (v && v.index + d >= 0 && v.index + d < v.list.length ? { ...v, index: v.index + d } : v));
 
   // Keyboard for the photo viewer: Esc closes, arrows step through.
   useEffect(() => {
     if (!viewer) return undefined;
     const onKey = (e) => {
       if (e.key === 'Escape') setViewer(null);
-      if (e.key === 'ArrowRight') setViewer((v) => (v && v.index < v.list.length - 1 ? { ...v, index: v.index + 1 } : v));
-      if (e.key === 'ArrowLeft') setViewer((v) => (v && v.index > 0 ? { ...v, index: v.index - 1 } : v));
+      if (e.key === 'ArrowRight') step(1);
+      if (e.key === 'ArrowLeft') step(-1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -93,6 +108,19 @@ export default function PlaceDetails({ place, fallback, onResize, savedOnly = fa
         setMenu(d.status === 'ok' ? { photos: d.photos } : { status: d.status });
       })
       .catch(() => setMenu({ status: 'error' }));
+  };
+
+  // Reviews are fetched the first time someone asks, then kept for everyone.
+  const openReviews = () => {
+    if (revs || !info) return;
+    setRevs('loading');
+    fetch(`/api/place-info?reviews=1&key=${encodeURIComponent(String(place.id))}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.status === 'ok') info.reviews = d.reviews;
+        setRevs(d.status === 'ok' ? { reviews: d.reviews } : { status: d.status });
+      })
+      .catch(() => setRevs({ status: 'error' }));
   };
 
   const strip = (raw) => {
@@ -138,7 +166,8 @@ export default function PlaceDetails({ place, fallback, onResize, savedOnly = fa
   }
 
   const photos = info.photos || [];
-  const reviews = info.reviews || [];
+  const reviews = info.reviews || revs?.reviews || [];
+  const reviewsUnknown = !info.reviews && !revs?.reviews && !!info.dataId;
   const shownReviews = allReviews ? reviews : reviews.slice(0, 2);
 
   return (
@@ -203,11 +232,37 @@ export default function PlaceDetails({ place, fallback, onResize, savedOnly = fa
           )}
         </div>
       )}
+      {reviewsUnknown &&
+        (revs === 'loading' ? (
+          <p className={styles.note}>Getting reviews…</p>
+        ) : revs?.status ? (
+          <p className={styles.note}>
+            {revs.status === 'later' ? 'Reviews will be available tomorrow.' : 'No reviews for this place yet.'}
+          </p>
+        ) : (
+          <button type="button" className={styles.more} onClick={openReviews}>
+            Show reviews
+          </button>
+        ))}
       <p className={styles.credit}>Rating, photos and reviews from Google</p>
 
       {viewer &&
         createPortal(
-          <div className={styles.viewer} role="dialog" aria-label="Photo" onClick={() => setViewer(null)}>
+          <div
+            className={styles.viewer}
+            role="dialog"
+            aria-label="Photo"
+            onClick={() => setViewer(null)}
+            onTouchStart={(e) => {
+              touchX.current = e.touches[0].clientX;
+            }}
+            onTouchEnd={(e) => {
+              if (touchX.current == null) return;
+              const dx = e.changedTouches[0].clientX - touchX.current;
+              touchX.current = null;
+              if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1);
+            }}
+          >
             <img
               src={viewer.list[viewer.index].full}
               alt=""
@@ -227,7 +282,7 @@ export default function PlaceDetails({ place, fallback, onResize, savedOnly = fa
                 aria-label="Previous photo"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setViewer((v) => ({ ...v, index: v.index - 1 }));
+                  step(-1);
                 }}
               >
                 ‹
@@ -240,7 +295,7 @@ export default function PlaceDetails({ place, fallback, onResize, savedOnly = fa
                 aria-label="Next photo"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setViewer((v) => ({ ...v, index: v.index + 1 }));
+                  step(1);
                 }}
               >
                 ›

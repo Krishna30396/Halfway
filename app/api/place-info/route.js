@@ -1,4 +1,4 @@
-import { getPlaceInfo, getMenuPhotos, getSavedPlaceInfo, getFeatured } from '@/lib/placeInfo';
+import { getPlaceInfo, getMenuPhotos, getReviews, getSavedPlaceInfo, getFeatured } from '@/lib/placeInfo';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +19,9 @@ export async function GET(request) {
     }
     if (params.get('menu') === '1') {
       return Response.json(await getMenuPhotos(key));
+    }
+    if (params.get('reviews') === '1') {
+      return Response.json(await getReviews(key));
     }
     const name = clean(params.get('name'), 120);
     const lat = parseFloat(params.get('lat'));

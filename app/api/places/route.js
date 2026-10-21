@@ -1,6 +1,7 @@
 import { places } from '@/lib/providers/places';
 import { CATEGORY_IDS } from '@/lib/categories';
 import { cached, TTL } from '@/lib/cache';
+import { mergeSaved } from '@/lib/placeInfo';
 
 export async function GET(request) {
   const params = new URL(request.url).searchParams;
@@ -21,8 +22,9 @@ export async function GET(request) {
 
   const key = `places:${lat.toFixed(4)},${lng.toFixed(4)}:${radiusKm}:${[...categoryIds].sort().join(',')}`;
   try {
-    const results = await cached(key, TTL.PLACES, () =>
-      places({ lat, lng, radiusKm, categoryIds })
+    // OSM places, plus the saved Google ones (seeded Hyderabad places) from our database.
+    const results = await cached(key, TTL.PLACES, async () =>
+      mergeSaved(await places({ lat, lng, radiusKm, categoryIds }), { lat, lng, radiusKm, categoryIds })
     );
     return Response.json({ places: results });
   } catch (err) {

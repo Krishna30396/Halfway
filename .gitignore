@@ -24,3 +24,5 @@ mobile/android/local.properties
 # Copied from node_modules at build time
 public/vendor/
 .next-*/
+
+seed-out/

@@ -45,6 +45,8 @@ const NavigationMap = dynamic(() => import('@/components/NavigationMap'), {
 });
 
 const ARRIVE_KM = 0.15;
+const ALMOST_KM = 0.5; // "almost there" alert: this close to the place…
+const ALMOST_MIN = 5; // …or this many minutes away
 const HEARTBEAT_MS = 30000;
 // Worse than this (metres) is a Wi-Fi / internet guess, not a GPS fix.
 const ROUGH_M = 200;
@@ -107,6 +109,8 @@ export default function MeetPage() {
   const [manual, setManual] = useState(false);
   const lastSent = useRef(null);
   const arrivedSent = useRef(false);
+  const almostSent = useRef(false);
+  const wasFar = useRef(false);
 
   // ---- Derived state --------------------------------------------------------
   const status = meetup?.status;
@@ -453,6 +457,23 @@ export default function MeetPage() {
   useEffect(() => {
     if (status !== 'live') setNavMode(false);
   }, [status]);
+
+  // ---- Almost there: tell the others once, ~5 min or ~500 m out ----------------
+  // Only after having been properly away, so starting next door doesn't send it.
+  useEffect(() => {
+    if (status !== 'live' || myDistKm == null || almostSent.current) return;
+    if (myDistKm > ALMOST_KM * 2) wasFar.current = true;
+    const close = myDistKm <= ALMOST_KM || (myEtaMin != null && myEtaMin <= ALMOST_MIN);
+    if (!wasFar.current || !close || myDistKm <= ARRIVE_KM) return;
+    almostSent.current = true;
+    const key = `halfway-almost-${id}`;
+    let already = false;
+    try {
+      already = !!localStorage.getItem(key);
+      localStorage.setItem(key, '1');
+    } catch {}
+    if (!already) sendLocation(true).then(() => notify('almost_there', id));
+  }, [status, myDistKm, myEtaMin, id, sendLocation]);
 
   // ---- Arrival: tell the friend once ------------------------------------------
   useEffect(() => {
@@ -886,6 +907,7 @@ export default function MeetPage() {
             friendLetter={friendLetter}
             others={othersOnMap}
             dest={dest}
+            focusOn={friendFocus}
           />
         ) : (
           <MeetMap

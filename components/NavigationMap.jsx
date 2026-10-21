@@ -58,6 +58,7 @@ export default function NavigationMap({
   friendLetter = '?',
   others = [],
   dest,
+  focusOn,
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -69,6 +70,8 @@ export default function NavigationMap({
   // since a new style drops our route layers and they must be re-added.
   const [styleVersion, setStyleVersion] = useState(0);
   const [paused, setPaused] = useState(false);
+  // Tapping a friend: look at them for a few seconds, then back to following me.
+  const [peeking, setPeeking] = useState(false);
   const mode = useThemeMode();
   const modeRef = useRef(mode);
   modeRef.current = mode;
@@ -224,7 +227,7 @@ export default function NavigationMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !overview || paused) return;
+    if (!map || !overview || paused || peeking) return;
     const pts = [me, friend, ...others].filter(Boolean);
     if (!pts.length) return;
     if (pts.length === 1) {
@@ -241,11 +244,21 @@ export default function NavigationMap({
       { padding: { top: 130, bottom: 110, left: 60, right: 60 }, bearing: 0, pitch: 0, maxZoom: 16, duration: 700 }
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overview, me?.lat, me?.lng, friend?.lat, friend?.lng, othersKey, paused]);
+  }, [overview, me?.lat, me?.lng, friend?.lat, friend?.lng, othersKey, paused, peeking]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || overview || !focus || paused) return;
+    if (!map || !focusOn) return;
+    setPeeking(true);
+    map.flyTo({ center: toLngLat(focusOn), zoom: 17, bearing: 0, pitch: 0, padding: 0, duration: 900, essential: true });
+    const t = setTimeout(() => setPeeking(false), 4500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusOn?.n]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || overview || !focus || paused || peeking) return;
     const h = map.getContainer().clientHeight;
     map.easeTo({
       center: toLngLat(focus),
@@ -257,7 +270,7 @@ export default function NavigationMap({
       duration: 900,
       essential: true,
     });
-  }, [focus?.lat, focus?.lng, bearing, paused, overview]);
+  }, [focus?.lat, focus?.lng, bearing, paused, overview, peeking]);
 
   return (
     <div className={s.wrap}>

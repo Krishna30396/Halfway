@@ -71,6 +71,15 @@ const MEETUP_TYPES = {
     title: (n, m) => `You're meeting at ${m.dest_name}`,
     body: (n) => `${n} accepted. Live tracking is on — tap to see them.`,
   },
+  // Once, when someone is ~5 min or ~500 m from the place.
+  almost_there: {
+    status: ['live'],
+    sender: 'any',
+    urgency: 'high',
+    ttl: 600,
+    title: (n) => `${n} is almost there`,
+    body: (n, m) => `A few minutes from ${m.dest_name}.`,
+  },
   arrived: {
     status: ['live'],
     sender: 'any',
@@ -246,6 +255,8 @@ async function meetupMessage(admin, type, m, n, caller, recipient) {
         map: place,
         button: 'Start navigation',
       };
+    case 'almost_there':
+      return { title: `🛵 ${n} is almost there`, preview: place ? `A few minutes from ${place.name}` : 'A few minutes away' };
     case 'arrived':
       return { title: `📍 ${n} has arrived`, preview: place ? `At ${place.name}` : 'At the meeting place' };
     case 'meet_ended':

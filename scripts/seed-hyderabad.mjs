@@ -7,6 +7,7 @@
 //   node scripts/seed-hyderabad.mjs --test          ONE search (3 credits); prints what Serper returns; saves nothing
 //   node scripts/seed-hyderabad.mjs --run           every search; resumes where it stopped
 //   node scripts/seed-hyderabad.mjs --run --page2   also page 2 for the busiest areas
+//   node scripts/seed-hyderabad.mjs --recategorise  re-sort saved places after changing TYPE_RULES; no searches
 //
 // Needs SERPER_KEY, NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local,
 // and supabase-places-seed.sql run first.
@@ -57,17 +58,19 @@ const TEMPLATES = [
 const BOX = { s: 17.15, n: 17.75, w: 78.1, e: 78.85 };
 
 // Google's type → our category chips (lib/categories.js). Order matters.
+// Types we can't meet at (hotels, caterers, suppliers, offices…) stay uncategorised
+// and so never show in a chip search.
 const TYPE_RULES = [
+  [/martial arts|pickleball|batting cage|\bgym\b|fitness|sports|stadium|swimming|badminton|cricket|football/i, 'sport'],
   // "Coffee bar", "juice bar" and "snack bar" aren't bars.
-  [/(?<!coffee |juice |snack |dessert |salad |tea )bar|pub|brew|lounge|night ?club|wine/i, 'bar'],
-  [/caf[eé]|coffee|tea house|tea shop|bakery|cake|dessert|ice cream|patisserie|chocolate|juice/i, 'cafe'],
-  [/fast food|street food|snack|chaat|food court|tiffin|sandwich|burger|pizza delivery|shawarma/i, 'fastfood'],
-  [/restaurant|biryani|dhaba|diner|eatery|meal|buffet|kitchen|grill|bistro/i, 'restaurant'],
-  [/park|garden|lake|nature|zoo/i, 'park'],
-  [/museum|art gallery|historical|monument|fort|palace|tourist attraction|heritage|temple|mosque|church|theatre|planetarium/i, 'culture'],
-  [/bowling|gaming|arcade|escape room|amusement|go[- ]?kart|trampoline|play ?area|paintball/i, 'games'],
-  [/shopping mall|mall|market/i, 'shopping'],
-  [/gym|fitness|sports|stadium|swimming|badminton|cricket|football/i, 'sport'],
+  [/(?<!coffee |juice |snack |dessert |salad |tea )\bbar\b|\bpub\b|brew|lounge|night ?club|disco|^club$|wine|hookah/i, 'bar'],
+  [/caf[eé]|coffee|\btea\b|bakery|cake|dessert|ice cream|patisserie|pastry|chocolate|juice|sweets?\b|candy|soft drinks/i, 'cafe'],
+  [/fast food|street food|snack|chaat|food court|tiffin|sandwich|burger|pizza|shawarma|kebab|fried chicken|takeaway|takeout|hawker/i, 'fastfood'],
+  [/restaurant|biryani|dhaba|diner|eatery|meal|buffet|kitchen|grill|bistro|^(south |north )?indian$|hyderabadi|^vegetarian$|family-friendly/i, 'restaurant'],
+  [/\bpark\b|garden|lake|nature|\bzoo\b|hiking|scenic/i, 'park'],
+  [/museum|art gallery|historical|monument|\bfort\b|palace|tourist attraction|heritage|temple|mosque|church|shrine|theatre|planetarium|exhibition|event venue|convention/i, 'culture'],
+  [/bowling|gaming|arcade|escape room|amusement|go[- ]?kart|trampoline|play ?area|playground|paintball|pool hall|billiard|snooker|mini(ature)? golf|video game/i, 'games'],
+  [/shopping mall|\bmall\b|bazaar|handicraft|^market$/i, 'shopping'],
 ];
 // Google's main type decides; the other types only when the main one says nothing.
 const categoryOf = (p) => {
@@ -183,6 +186,32 @@ if (args.has('--test')) {
     const r = toRow(p, jobs[1].q);
     console.log(' ', p.title, '|', p.type, '→', r?.category, '| rating', p.rating, '| cover', p.thumbnailUrl ? 'yes' : 'no', '| fid', p.fid ? 'yes' : 'no');
   }
+  process.exit(0);
+}
+
+if (args.has('--recategorise')) {
+  // Re-sort every seeded place from the Google types already saved. No searches.
+  const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const rows = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from('place_info').select('place_key, info').like('place_key', 'g:%').range(from, from + 999);
+    if (error) throw new Error(error.message);
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
+  let changed = 0;
+  const counts = {};
+  for (const { place_key, info } of rows) {
+    const category = categoryOf(info);
+    counts[category] = (counts[category] || 0) + 1;
+    if (category === info.category) continue;
+    const { error } = await supabase.from('place_info').update({ category, info: { ...info, category } }).eq('place_key', place_key);
+    if (error) throw new Error(error.message);
+    changed++;
+  }
+  console.log(`${rows.length} places, ${changed} changed`, counts);
   process.exit(0);
 }
 

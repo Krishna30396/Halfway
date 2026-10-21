@@ -37,7 +37,7 @@ export default function MeetupInbox() {
 
     let alive = true;
     const load = async () => {
-      const [{ data: meets }, { data: requests }] = await Promise.all([
+      const [{ data: meets }, { data: requests }, { data: invites }] = await Promise.all([
         supabase
           .from('meetups')
           .select('id, created_by, invitee, status, proposed_by, proposal_name, updated_at')
@@ -49,6 +49,8 @@ export default function MeetupInbox() {
           .select('id, requester')
           .eq('addressee', user.id)
           .eq('status', 'pending'),
+        // Added to a group meetup (errors just mean the group SQL isn't installed).
+        supabase.from('meetup_members').select('meetup_id, invited_by').eq('user_id', user.id).eq('status', 'invited'),
       ]);
 
       const next = [];
@@ -66,6 +68,9 @@ export default function MeetupInbox() {
           });
         }
       }
+      for (const g of invites || []) {
+        next.push({ key: `added-${g.meetup_id}`, meetId: g.meetup_id, other: g.invited_by, kind: 'added' });
+      }
       for (const f of requests || []) {
         next.push({ key: `friend-${f.id}`, other: f.requester, kind: 'friend' });
       }
@@ -80,12 +85,18 @@ export default function MeetupInbox() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'meetups' }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, load)
       .subscribe();
+    // Own channel, so a missing table can't break the one above.
+    const membersChannel = supabase
+      .channel(`inbox-members-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meetup_members', filter: `user_id=eq.${user.id}` }, load)
+      .subscribe();
     const onVisible = () => document.visibilityState === 'visible' && load();
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       alive = false;
       supabase.removeChannel(channel);
+      supabase.removeChannel(membersChannel);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [user]);
@@ -102,7 +113,9 @@ export default function MeetupInbox() {
   const text =
     item.kind === 'request'
       ? `${item.name} wants to meet up`
-      : item.kind === 'proposal'
+      : item.kind === 'added'
+        ? `${item.name} added you to a meetup`
+        : item.kind === 'proposal'
         ? `${item.name} suggested ${item.place}`
         : `${item.name} sent you a friend request`;
 

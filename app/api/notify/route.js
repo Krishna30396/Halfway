@@ -86,6 +86,30 @@ const MEETUP_TYPES = {
     title: (n) => `${n} ended the meetup`,
     body: () => 'Location sharing has stopped.',
   },
+  // Group meetups: someone added a friend (sent to that friend only).
+  member_invited: {
+    email: true,
+    status: ['planning', 'live'],
+    sender: 'any',
+    urgency: 'high',
+    sticky: true,
+    title: (n) => `${n} added you to a meetup`,
+    body: () => 'Tap to join and share your location.',
+  },
+  member_joined: {
+    status: ['planning', 'live'],
+    sender: 'member',
+    urgency: 'normal',
+    title: (n) => `${n} joined the meetup`,
+    body: () => 'You can all see each other now.',
+  },
+  member_left: {
+    status: ['planning', 'live'],
+    sender: 'member',
+    urgency: 'normal',
+    title: (n) => `${n} left the meetup`,
+    body: () => 'Their location is no longer shared.',
+  },
 };
 
 const FRIEND_TYPES = {
@@ -226,6 +250,16 @@ async function meetupMessage(admin, type, m, n, caller, recipient) {
       return { title: `📍 ${n} has arrived`, preview: place ? `At ${place.name}` : 'At the meeting place' };
     case 'meet_ended':
       return { title: `🏁 ${n} ended the meetup`, preview: 'Location sharing has stopped' };
+    case 'member_invited':
+      return {
+        title: `👥 ${n} added you to a meetup`,
+        preview: m.status === 'live' && place ? `Heading to ${place.name}` : 'Tap to join and pick a place together',
+        button: 'Join the meetup',
+      };
+    case 'member_joined':
+      return { title: `🎉 ${n} joined the meetup`, preview: 'You can all see each other now' };
+    case 'member_left':
+      return { title: `👋 ${n} left the meetup`, preview: 'Their location is no longer shared' };
     default:
       return {};
   }
@@ -258,6 +292,8 @@ export async function POST(request) {
   let recipient;
   let title;
   let text;
+  // Group meetups: one message per person, worded for each of them.
+  let messages = null;
   let url;
   let tag;
   let urgency = 'normal';
@@ -303,9 +339,21 @@ export async function POST(request) {
   } else if (MEETUP_TYPES[type]) {
     const rule = MEETUP_TYPES[type];
     const { data: m } = await admin.from('meetups').select('*').eq('id', id).maybeSingle();
-    if (!m || ![m.created_by, m.invitee].includes(caller)) return fail('Not allowed.', 403);
+    if (!m) return fail('Not allowed.', 403);
+    // Members added later (the table may not exist yet on an older database).
+    const { data: memberRows } = await admin
+      .from('meetup_members')
+      .select('user_id, status, invited_by')
+      .eq('meetup_id', id);
+    const members = memberRows || [];
+    const joined = members.filter((r) => r.status === 'joined').map((r) => r.user_id);
+    const people = [m.created_by, m.invitee, ...joined];
+    const callerMember = members.find((r) => r.user_id === caller);
+    const leaving = type === 'member_left' && callerMember?.status === 'left';
+    if (!people.includes(caller) && !leaving) return fail('Not allowed.', 403);
     if (!rule.status.includes(m.status)) return fail('Meetup is not in the right state.', 409);
-    if (rule.sender !== 'any' && m[rule.sender] !== caller) return fail('Not allowed.', 403);
+    if (rule.sender === 'member' && !callerMember) return fail('Not allowed.', 403);
+    if (!['any', 'member'].includes(rule.sender) && m[rule.sender] !== caller) return fail('Not allowed.', 403);
     if (type === 'place_proposed' && m.proposal_lat == null) return fail('No proposal.', 409);
 
     if (type === 'arrived') {
@@ -320,27 +368,38 @@ export async function POST(request) {
       }
     }
 
-    recipient = caller === m.created_by ? m.invitee : m.created_by;
+    let recipients;
+    if (type === 'member_invited') {
+      const to = body.to;
+      const invite = members.find((r) => r.user_id === to);
+      if (!invite || invite.status !== 'invited' || invite.invited_by !== caller) return fail('Not allowed.', 403);
+      recipients = [to];
+    } else {
+      recipients = [...new Set(people)].filter((p) => p !== caller);
+    }
     const n = await senderName();
-    title = rule.title(n, m);
-    text = rule.body(n, m);
     url = `/meet/${id}`;
     tag = `meet-${id}`;
     urgency = rule.urgency;
     sticky = !!rule.sticky;
     email = !!rule.email;
     if (rule.ttl) ttl = rule.ttl;
-    const msg = await meetupMessage(admin, type, m, plain(n), caller, recipient);
-    if (msg.title) {
-      title = msg.title;
-      text = msg.preview;
-    }
-    if (email) emailExtra = { details: msg.details, map: msg.map, button: msg.button };
+    messages = await Promise.all(
+      recipients.map(async (r) => {
+        const msg = await meetupMessage(admin, type, m, plain(n), caller, r);
+        return {
+          recipient: r,
+          title: msg.title || rule.title(n, m),
+          text: msg.title ? msg.preview : rule.body(n, m),
+          emailExtra: email ? { details: msg.details, map: msg.map, button: msg.button } : {},
+        };
+      })
+    );
   } else {
     return fail('Unknown notification type.', 400);
   }
 
-  if (isDuplicate(`${caller}:${type}:${id}`)) return Response.json({ ok: true, sent: 0 });
+  if (isDuplicate(`${caller}:${type}:${id}:${body.to || ''}`)) return Response.json({ ok: true, sent: 0 });
   if (type === 'test') {
     const delay = Math.min(10, Math.max(0, Number(body.delaySec) || 0));
     await new Promise((r) => setTimeout(r, delay * 1000));
@@ -351,113 +410,117 @@ export async function POST(request) {
   // person can see which of push / email works.
   const report = { app: 0, browser: 0, email: 'not set up on the server' };
 
-  const { data: devices } = fcm
-    ? await admin.from('device_tokens').select('token').eq('user_id', recipient)
-    : { data: [] };
-  const tokens = (devices || []).map((d) => d.token);
+  const deliver = async ({ recipient, title, text, emailExtra }) => {
+    const { data: devices } = fcm
+      ? await admin.from('device_tokens').select('token').eq('user_id', recipient)
+      : { data: [] };
+    const tokens = (devices || []).map((d) => d.token);
 
-  const sendWebPush = async () => {
-    // Someone with the Android app gets alerts there only — not a second copy
-    // from Chrome because they once turned notifications on in the browser.
-    if (!webPush || tokens.length) return;
-    const { data: subs } = await admin
-      .from('push_subscriptions')
-      .select('id, endpoint, p256dh, auth')
-      .eq('user_id', recipient);
+    const sendWebPush = async () => {
+      // Someone with the Android app gets alerts there only — not a second copy
+      // from Chrome because they once turned notifications on in the browser.
+      if (!webPush || tokens.length) return;
+      const { data: subs } = await admin
+        .from('push_subscriptions')
+        .select('id, endpoint, p256dh, auth')
+        .eq('user_id', recipient);
 
-    const payload = JSON.stringify({ title, body: text, url, tag, requireInteraction: sticky });
-    await Promise.all(
-      (subs || []).map(async (s) => {
-        try {
-          await webpush.sendNotification(
-            { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-            payload,
-            { TTL: ttl, urgency }
-          );
-          sent++;
-          report.browser++;
-        } catch (err) {
-          // The device unsubscribed or reinstalled — forget it.
-          if (err.statusCode === 404 || err.statusCode === 410) {
-            await admin.from('push_subscriptions').delete().eq('id', s.id);
+      const payload = JSON.stringify({ title, body: text, url, tag, requireInteraction: sticky });
+      await Promise.all(
+        (subs || []).map(async (s) => {
+          try {
+            await webpush.sendNotification(
+              { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+              payload,
+              { TTL: ttl, urgency }
+            );
+            sent++;
+            report.browser++;
+          } catch (err) {
+            // The device unsubscribed or reinstalled — forget it.
+            if (err.statusCode === 404 || err.statusCode === 410) {
+              await admin.from('push_subscriptions').delete().eq('id', s.id);
+            }
           }
-        }
-      })
-    );
-  };
+        })
+      );
+    };
 
-  const sendFcm = async () => {
-    if (!fcm || !tokens.length) return;
-    try {
-      const res = await fcm.sendEachForMulticast({
-        tokens,
-        notification: { title, body: text },
-        data: { url, tag },
-        android: {
-          priority: 'high',
-          ttl: ttl * 1000,
-          // Public + max priority: shown in full on the lock screen and as a
-          // heads-up banner over other apps (the channel is high-importance too).
-          notification: {
-            channelId: 'halfway_alerts',
-            tag,
-            sound: 'default',
-            defaultVibrateTimings: true,
-            visibility: 'public',
-            notificationPriority: 'PRIORITY_MAX',
+    const sendFcm = async () => {
+      if (!fcm || !tokens.length) return;
+      try {
+        const res = await fcm.sendEachForMulticast({
+          tokens,
+          notification: { title, body: text },
+          data: { url, tag },
+          android: {
+            priority: 'high',
+            ttl: ttl * 1000,
+            // Public + max priority: shown in full on the lock screen and as a
+            // heads-up banner over other apps (the channel is high-importance too).
+            notification: {
+              channelId: 'halfway_alerts',
+              tag,
+              sound: 'default',
+              defaultVibrateTimings: true,
+              visibility: 'public',
+              notificationPriority: 'PRIORITY_MAX',
+            },
           },
-        },
-      });
-      sent += res.successCount;
-      report.app += res.successCount;
-      const dead = tokens.filter((_, i) => DEAD_FCM_CODES.has(res.responses[i]?.error?.code));
-      if (dead.length) await admin.from('device_tokens').delete().in('token', dead);
-    } catch (err) {
-      console.error('FCM send failed:', err.message);
-    }
+        });
+        sent += res.successCount;
+        report.app += res.successCount;
+        const dead = tokens.filter((_, i) => DEAD_FCM_CODES.has(res.responses[i]?.error?.code));
+        if (dead.length) await admin.from('device_tokens').delete().in('token', dead);
+      } catch (err) {
+        console.error('FCM send failed:', err.message);
+      }
+    };
+
+    const sendEmail = async () => {
+      if (!mail || !email) return;
+      const { data: row } = await admin
+        .from('email_alerts')
+        .select('email, enabled')
+        .eq('user_id', recipient)
+        .maybeSingle();
+      if (!row?.enabled) {
+        report.email = row ? 'turned off' : 'no email address added';
+        return;
+      }
+      try {
+        await sendAlertEmail({
+          to: row.email,
+          userId: recipient,
+          title,
+          text,
+          url,
+          ...emailExtra,
+          preheader: text,
+          fromName: type !== 'test' ? `${plain(await senderName())} (via Halfway)` : undefined,
+          origin: new URL(request.url).origin,
+        });
+        sent++;
+        report.email = 'sent';
+      } catch (err) {
+        console.error('Email send failed:', err.message);
+        // Enough to spot a typo or a mis-paste without revealing either value.
+        const user = (process.env.SMTP_USER || '').trim();
+        // Never echo SMTP_USER unless it really is an address (it once held a password).
+        const shown = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(user)
+          ? user.replace(/^(.{2}).*(@.*)$/, '$1•••$2')
+          : 'SMTP_USER, which is not an email address';
+        const passLen = (process.env.SMTP_PASS || '').replace(/\s+/g, '').length;
+        report.email = /535|Username and Password not accepted|BadCredentials/i.test(err.message)
+          ? `Gmail rejected the login for ${shown} (password is ${passLen} characters; an app password is 16)`
+          : `failed: ${err.message.slice(0, 120)}`;
+      }
+    };
+
+    await Promise.all([sendWebPush(), sendFcm(), sendEmail()]);
   };
 
-  const sendEmail = async () => {
-    if (!mail || !email) return;
-    const { data: row } = await admin
-      .from('email_alerts')
-      .select('email, enabled')
-      .eq('user_id', recipient)
-      .maybeSingle();
-    if (!row?.enabled) {
-      report.email = row ? 'turned off' : 'no email address added';
-      return;
-    }
-    try {
-      await sendAlertEmail({
-        to: row.email,
-        userId: recipient,
-        title,
-        text,
-        url,
-        ...emailExtra,
-        preheader: text,
-        fromName: type !== 'test' ? `${plain(await senderName())} (via Halfway)` : undefined,
-        origin: new URL(request.url).origin,
-      });
-      sent++;
-      report.email = 'sent';
-    } catch (err) {
-      console.error('Email send failed:', err.message);
-      // Enough to spot a typo or a mis-paste without revealing either value.
-      const user = (process.env.SMTP_USER || '').trim();
-      // Never echo SMTP_USER unless it really is an address (it once held a password).
-      const shown = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(user)
-        ? user.replace(/^(.{2}).*(@.*)$/, '$1•••$2')
-        : 'SMTP_USER, which is not an email address';
-      const passLen = (process.env.SMTP_PASS || '').replace(/\s+/g, '').length;
-      report.email = /535|Username and Password not accepted|BadCredentials/i.test(err.message)
-        ? `Gmail rejected the login for ${shown} (password is ${passLen} characters; an app password is 16)`
-        : `failed: ${err.message.slice(0, 120)}`;
-    }
-  };
-
-  await Promise.all([sendWebPush(), sendFcm(), sendEmail()]);
+  await Promise.all((messages || [{ recipient, title, text, emailExtra }]).map(deliver));
 
   return Response.json(type === 'test' ? { ok: true, sent, report } : { ok: true, sent });
 }

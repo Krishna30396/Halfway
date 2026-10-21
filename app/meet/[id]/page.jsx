@@ -12,13 +12,14 @@ import { getSupabase } from '@/lib/supabase';
 import { isNativeApp, getBackgroundGeolocation, nativeUpsert } from '@/lib/native';
 import { notify } from '@/lib/notify';
 import { fetchProfiles, displayName, initialOf } from '@/lib/social';
-import { haversine, pointAtFraction } from '@/lib/geo';
+import { haversine, pointAtFraction, fairCenter } from '@/lib/geo';
 import { useLiveRoute, fmtKm, fmtMin } from '@/lib/navigation';
 import { sendGapMs, withSpeed, fmtSpeed } from '@/lib/liveTracking';
 import { rememberPosition } from '@/lib/localPlaces';
 import NavBanner from '@/components/NavBanner';
 import FriendSpot from '@/components/FriendSpot';
 import FairSpots from '@/components/meet/FairSpots';
+import AddPeople from '@/components/meet/AddPeople';
 import {
   MeetHeader,
   StatusPill,
@@ -48,6 +49,7 @@ const HEARTBEAT_MS = 30000;
 // Worse than this (metres) is a Wi-Fi / internet guess, not a GPS fix.
 const ROUGH_M = 200;
 const MIN_MOVE_KM = 0.01;
+const STALE_MS = 2 * 60 * 1000;
 
 function fmtAgo(iso, now) {
   const sec = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
@@ -56,6 +58,15 @@ function fmtAgo(iso, now) {
   const min = Math.round(sec / 60);
   return min < 60 ? `${min} min ago` : 'over an hour ago';
 }
+
+// "A", "A and B", "A, B and C".
+function listNames(names) {
+  if (names.length <= 1) return names[0] || '';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+// Errors from a database function that isn't installed yet (group SQL not run).
+const missingFn = (error) => error?.code === 'PGRST202' || error?.code === '42883';
 
 export default function MeetPage() {
   const { id } = useParams();
@@ -66,6 +77,8 @@ export default function MeetPage() {
   const [loadError, setLoadError] = useState(null);
   const [profiles, setProfiles] = useState({});
   const [locs, setLocs] = useState({});
+  // Group meetups: people added after it started (invited / joined / declined / left).
+  const [members, setMembers] = useState([]);
   const [myPos, setMyPos] = useState(null);
   const [geoError, setGeoError] = useState(null);
   const [geoAttempt, setGeoAttempt] = useState(0);
@@ -83,6 +96,9 @@ export default function MeetPage() {
   const [recenter, setRecenter] = useState(0);
   const [navMode, setNavMode] = useState(false);
   const [pov, setPov] = useState('me');
+  // "Where's my friend?": re-read their latest spot, then zoom the map onto it.
+  const [findingId, setFindingId] = useState(null);
+  const [friendFocus, setFriendFocus] = useState(null);
 
   const layout = useSheetLayout();
   const myPosRef = useRef(null);
@@ -95,11 +111,21 @@ export default function MeetPage() {
   // ---- Derived state --------------------------------------------------------
   const status = meetup?.status;
   const iAmCreator = !!meetup && meetup.created_by === user?.id;
+  // The "friend" is the other person who started it (or, for someone added
+  // later, whoever created it); everyone else in a group is in extraIds.
   const friendId = meetup && user ? (iAmCreator ? meetup.invitee : meetup.created_by) : null;
   const friend = profiles[friendId];
   const friendName = displayName(friend);
   const friendLoc = friendId ? locs[friendId] : null;
-  const sharing = status === 'planning' || status === 'live';
+  const iAmOriginal = !!meetup && !!user && (meetup.created_by === user.id || meetup.invitee === user.id);
+  const myMember = members.find((r) => r.user_id === user?.id) || null;
+  const joinedIds = members.filter((r) => r.status === 'joined').map((r) => r.user_id);
+  const invitedIds = members.filter((r) => r.status === 'invited').map((r) => r.user_id);
+  const peopleIds = meetup ? [...new Set([meetup.created_by, meetup.invitee, ...joinedIds])] : [];
+  const extraIds = peopleIds.filter((p) => p !== user?.id && p !== friendId);
+  const isGroup = peopleIds.length > 2;
+  const iAmIn = iAmOriginal || myMember?.status === 'joined';
+  const sharing = (status === 'planning' || status === 'live') && iAmIn;
   const dest =
     status === 'live' && meetup.dest_lat != null
       ? { lat: meetup.dest_lat, lng: meetup.dest_lng, name: meetup.dest_name }
@@ -122,8 +148,14 @@ export default function MeetPage() {
       return;
     }
     setMeetup(data);
-    const { data: rows } = await supabase.from('live_locations').select('*').eq('meetup_id', id);
+    const [{ data: rows }, { data: memberRows }] = await Promise.all([
+      supabase.from('live_locations').select('*').eq('meetup_id', id),
+      // Errors (e.g. the group-meetups SQL not run yet) just mean no extra people.
+      supabase.from('meetup_members').select('*').eq('meetup_id', id),
+    ]);
+    setMembers(memberRows || []);
     setLocs((cur) => Object.fromEntries((rows || []).map((r) => [r.user_id, withSpeed(cur[r.user_id], r)])));
+    return rows || [];
   }, [supabase, user, id]);
 
   useEffect(() => {
@@ -143,21 +175,29 @@ export default function MeetPage() {
         }
       )
       .subscribe();
+    const membersChannel = supabase
+      .channel(`meet-members-${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meetup_members', filter: `meetup_id=eq.${id}` }, () =>
+        load()
+      )
+      .subscribe();
     // Safety net in case the realtime socket drops (flaky mobile data).
     const poll = setInterval(load, 20000);
     const onVisible = () => document.visibilityState === 'visible' && load();
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(membersChannel);
       clearInterval(poll);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [authLoading, user, supabase, id, load]);
 
+  const profileKey = meetup ? [meetup.created_by, meetup.invitee, ...members.map((r) => r.user_id)].join(',') : '';
   useEffect(() => {
-    if (!meetup) return;
-    fetchProfiles([meetup.created_by, meetup.invitee]).then(setProfiles);
-  }, [meetup?.created_by, meetup?.invitee]);
+    if (!profileKey) return;
+    fetchProfiles(profileKey.split(',')).then(setProfiles);
+  }, [profileKey]);
 
   // Ticks every second while sharing so "updated 4s ago" stays honest.
   useEffect(() => {
@@ -342,27 +382,27 @@ export default function MeetPage() {
   }, [sharing, sendLocation]);
 
   // ---- Planning: fair halfway point between the two live positions -----------
-  const creatorLoc = meetup ? locs[meetup.created_by] : null;
-  const inviteeLoc = meetup ? locs[meetup.invitee] : null;
-  // Rounded to ~1 km so both phones compute the same point and GPS jitter
-  // doesn't re-run the search.
+  // Everyone who's sharing, in a fixed order. Rounded to ~1 km so every phone
+  // computes the same point and GPS jitter doesn't re-run the search.
+  const basisLocs = peopleIds.map((p) => locs[p]).filter(Boolean);
   const basisKey =
-    status === 'planning' && creatorLoc && inviteeLoc
-      ? [creatorLoc.lat, creatorLoc.lng, inviteeLoc.lat, inviteeLoc.lng].map((v) => v.toFixed(2)).join(',')
+    status === 'planning' && basisLocs.length >= 2
+      ? basisLocs.map((l) => `${l.lat.toFixed(2)},${l.lng.toFixed(2)}`).join(';')
       : null;
 
   useEffect(() => {
     if (!basisKey) return;
-    const [aLat, aLng, bLat, bLng] = basisKey.split(',').map(Number);
-    const A = [aLat, aLng];
-    const B = [bLat, bLng];
-    const straight = [(aLat + bLat) / 2, (aLng + bLng) / 2];
+    const pts = basisKey.split(';').map((p) => p.split(',').map(Number));
+    const [A, B] = pts;
+    // Two people: halfway along the road between them. A group: the spot that
+    // keeps the longest trip as short as possible.
+    const straight = pts.length === 2 ? [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2] : fairCenter(pts);
     const controller = new AbortController();
     const { signal } = controller;
 
     (async () => {
       let point = straight;
-      if (haversine(A, B) > 0.5) {
+      if (pts.length === 2 && haversine(A, B) > 0.5) {
         try {
           const r = await fetch(`/api/route?from=${A.join(',')}&to=${B.join(',')}`, { signal }).then((x) => x.json());
           if (r.routes?.[0]) point = pointAtFraction(r.routes[0].coords, 0.5).point;
@@ -556,6 +596,17 @@ export default function MeetPage() {
     await update(CLEAR_PROPOSAL, { status: 'planning', proposed_by: user.id });
   });
   const acceptProposal = run(async () => {
+    // Everyone has to accept in a group; the database starts it when the last one does.
+    const { data: started, error } = await supabase.rpc('accept_proposal', { m: id, pname: meetup.proposal_name });
+    if (!error) {
+      if (started) notify('place_agreed', id);
+      await load();
+      return;
+    }
+    if (!missingFn(error)) {
+      load();
+      throw new Error(error.message);
+    }
     await update(
       {
         status: 'live',
@@ -570,14 +621,42 @@ export default function MeetPage() {
     notify('place_agreed', id);
   });
   const rejectProposal = run(async () => {
-    await update(CLEAR_PROPOSAL, { status: 'planning', proposed_by: friendId });
+    await update(CLEAR_PROPOSAL, { status: 'planning', proposal_name: meetup.proposal_name });
     notify('place_rejected', id);
   });
   const endMeetup = run(async () => {
-    if (!window.confirm('End this meetup and stop sharing your location?')) return;
+    const ask = isGroup
+      ? 'End this meetup for everyone and stop sharing locations?'
+      : 'End this meetup and stop sharing your location?';
+    if (!window.confirm(ask)) return;
     await update({ status: 'ended' }, { status });
     notify('meet_ended', id);
   });
+  // People who were added later can leave without ending it for everyone.
+  const leaveMeetup = run(async () => {
+    if (!window.confirm('Leave this meetup? Your location stops sharing.')) return;
+    const { error } = await supabase.rpc('leave_meetup', { m: id });
+    if (error) throw new Error(error.message);
+    notify('member_left', id);
+    await load();
+  });
+  const respondInvite = (accept) =>
+    run(async () => {
+      const { error } = await supabase.rpc('respond_meetup_invite', { m: id, accept });
+      if (error) throw new Error(error.message);
+      if (accept) notify('member_joined', id);
+      await load();
+    })();
+  const addPerson = async (uid) => {
+    const { error } = await supabase.rpc('add_meetup_member', { m: id, friend: uid });
+    if (error) {
+      throw new Error(
+        missingFn(error) ? 'Adding people needs a quick database update first (supabase-group-meetups.sql).' : error.message
+      );
+    }
+    notify('member_invited', id, { to: uid });
+    await load();
+  };
 
 
   // ---- Render -------------------------------------------------------------------
@@ -589,7 +668,7 @@ export default function MeetPage() {
   }
   if (!user) {
     return (
-      <Centered title="Open Halfway on the phone you set up" text="Meetups are private to the two people in them. If this is a new phone, pick a username first and ask your friend to send a new meetup.">
+      <Centered title="Open Halfway on the phone you set up" text="Meetups are private to the people in them. If this is a new phone, pick a username first and ask your friend to send a new meetup.">
         <Link href="/friends" className={m.btn}>Go to Friends</Link>
       </Centered>
     );
@@ -651,13 +730,55 @@ export default function MeetPage() {
     );
   }
 
+  // Added to a group meetup by a friend: accept or decline first.
+  if (!iAmOriginal && myMember?.status === 'invited') {
+    const inviter = profiles[myMember.invited_by];
+    const names = peopleIds.map((p) => displayName(profiles[p]));
+    return (
+      <Centered
+        avatar={initialOf(inviter)}
+        title={`${displayName(inviter)} added you to a meetup`}
+        text={`With ${listNames(names)}${
+          dest ? `, heading to ${dest.name}` : ''
+        }. If you join, everyone sees your live location for this meetup only.`}
+      >
+        {actionError && <p className={s.error}>{actionError}</p>}
+        <div className={m.row} style={{ marginTop: 0 }}>
+          <button type="button" className={m.btn} onClick={() => respondInvite(true)} disabled={busy}>
+            {busy ? 'Joining…' : 'Join & share location'}
+          </button>
+          <button
+            type="button"
+            className={m.btnGhost}
+            onClick={() => respondInvite(false)}
+            disabled={busy}
+            style={{ flex: '0 0 auto' }}
+          >
+            Decline
+          </button>
+        </div>
+      </Centered>
+    );
+  }
+  if (!iAmIn) {
+    return (
+      <Centered
+        title="You're not in this meetup"
+        text={myMember?.status === 'left' ? 'You left this meetup. Location sharing is off.' : 'You declined this one.'}
+      >
+        <Link href="/friends" className={m.btn}>Back to friends</Link>
+      </Centered>
+    );
+  }
+
   // planning / live
   const selectedPlace = places?.find((p) => p.id === selectedPlaceId) || null;
   const friendDistKm =
     dest && friendLoc ? haversine([friendLoc.lat, friendLoc.lng], [dest.lat, dest.lng]) : null;
   const friendArrived = friendDistKm != null && friendDistKm <= ARRIVE_KM;
   const iArrived = myDistKm != null && myDistKm <= ARRIVE_KM;
-  const fitKey = [!!myPos, !!friendLoc, dest?.lat, proposal?.lat, halfway?.point?.[0], recenter, navMode, layout.wide].join('|');
+  const extraLocCount = extraIds.filter((p) => locs[p]).length;
+  const fitKey = [!!myPos, !!friendLoc, extraLocCount, dest?.lat, proposal?.lat, halfway?.point?.[0], recenter, navMode, layout.wide].join('|');
 
   const navigating = navMode && status === 'live' && !!dest;
   const viewing = pov === 'friend' && friendLoc ? 'friend' : 'me';
@@ -666,13 +787,85 @@ export default function MeetPage() {
   const friendLetter = initialOf(friend);
   const friendEta = friendNav.progress?.etaMin ?? friendLoc?.eta_min ?? null;
   const friendAgo = friendLoc?.updated_at ? fmtAgo(friendLoc.updated_at, now) : null;
+  // No upload for 2 min means their phone stopped sending (app closed, screen
+  // off on the web, or battery saver) - the heartbeat alone sends every 30 s.
+  const friendStale = !!friendLoc?.updated_at && now - new Date(friendLoc.updated_at).getTime() > STALE_MS;
+  // Re-read the latest spots, then zoom onto one person ('all' = fit everyone).
+  const findPerson = async (uid) => {
+    if (findingId) return;
+    setFindingId(uid);
+    const started = Date.now();
+    let rows = null;
+    try {
+      rows = await load();
+    } catch {}
+    // Keep the spinner up long enough to read as "checked".
+    await new Promise((r) => setTimeout(r, Math.max(0, 600 - (Date.now() - started))));
+    setFindingId(null);
+    if (uid === 'all') {
+      setRecenter((n) => n + 1);
+      return;
+    }
+    const at = rows?.find((r) => r.user_id === uid) || locs[uid];
+    if (at) setFriendFocus({ lat: at.lat, lng: at.lng, n: Date.now() });
+  };
+  const findFriend = () => findPerson(friendId);
 
-  const pill = meetStatusPill({ status, friendName, friendLoc, friendArrived, friendEta, friendDistKm, friendNav, friendAgo });
+  // Everyone else in a group: markers, list rows and the pill summary.
+  const extras = extraIds.map((uid) => {
+    const loc = locs[uid] || null;
+    const profile = profiles[uid];
+    const distKm = dest && loc ? haversine([loc.lat, loc.lng], [dest.lat, dest.lng]) : null;
+    return {
+      id: uid,
+      loc,
+      name: displayName(profile),
+      letter: initialOf(profile),
+      distKm,
+      arrived: distKm != null && distKm <= ARRIVE_KM,
+      etaMin: loc?.eta_min ?? null,
+      ago: loc?.updated_at ? fmtAgo(loc.updated_at, now) : null,
+      stale: !!loc?.updated_at && now - new Date(loc.updated_at).getTime() > STALE_MS,
+    };
+  });
+  const othersOnMap = extras
+    .filter((e) => e.loc)
+    .map((e) => ({
+      id: e.id,
+      lat: e.loc.lat,
+      lng: e.loc.lng,
+      letter: e.letter,
+      name: e.name,
+      tag: status === 'live' ? (e.arrived ? 'Arrived' : e.etaMin != null ? fmtMin(e.etaMin) : null) : null,
+    }));
+
+  let pill = meetStatusPill({ status, friendName, friendLoc, friendArrived, friendEta, friendDistKm, friendNav, friendAgo, friendStale });
+  if (isGroup) {
+    const here = [iArrived, friendArrived, ...extras.map((e) => e.arrived)].filter(Boolean).length;
+    pill = {
+      label: status === 'live' ? 'Tracking live' : 'Picking a place',
+      detail:
+        status === 'live'
+          ? here
+            ? `${here} of ${peopleIds.length} there`
+            : `${peopleIds.length} people on the way`
+          : `${peopleIds.length} people`,
+      ago: null,
+      live: true,
+    };
+  }
   const { meTag, friendTag } = etaTags({ status, myPos, friendLoc, center, iArrived, friendArrived, myEtaMin, friendEta });
   const alert = proposal && proposal.by !== user.id ? `${friendName} suggested ${proposal.name}` : null;
   const shareHint = native
     ? 'Location keeps sharing in the background — you’ll see a Halfway notification while it’s on.'
     : 'Keep Halfway open on screen while you travel — phones pause location sharing for web apps running in the background.';
+  // Group suggestions start once everyone (but whoever suggested it) accepts.
+  const accepts = meetup.proposal_accepts || [];
+  const waitingOn = proposal ? peopleIds.filter((p) => p !== proposal.by && !accepts.includes(p)) : [];
+  const iAccepted = !!proposal && accepts.includes(user.id);
+  const lastToAccept = waitingOn.length === 1 && waitingOn[0] === user.id;
+  const waitingNames = listNames(waitingOn.filter((p) => p !== user.id).map((p) => displayName(profiles[p])));
+
   const startNav = () => {
     setPov('me');
     setNavMode(true);
@@ -691,6 +884,7 @@ export default function MeetPage() {
             meLetter={meLetter}
             friend={friendLoc}
             friendLetter={friendLetter}
+            others={othersOnMap}
             dest={dest}
           />
         ) : (
@@ -700,6 +894,7 @@ export default function MeetPage() {
             friend={friendLoc}
             friendLetter={friendLetter}
             friendName={friendName}
+            others={othersOnMap}
             midpoint={status === 'planning' ? halfway?.point : null}
             places={status === 'planning' ? places : null}
             selectedPlaceId={selectedPlaceId}
@@ -712,6 +907,7 @@ export default function MeetPage() {
             onMapClick={status === 'planning' && !proposal ? setDroppedPin : null}
             fitKey={fitKey}
             panTarget={selectedPlace}
+            focusOn={friendFocus}
             insets={layout.insets}
             meTag={meTag}
             friendTag={friendTag}
@@ -744,7 +940,12 @@ export default function MeetPage() {
             )}
           </div>
         ) : (
-          <StatusPill {...pill} />
+          <StatusPill
+            {...pill}
+            onClick={isGroup ? () => findPerson('all') : friendLoc ? findFriend : null}
+            busy={isGroup ? findingId === 'all' : findingId === friendId}
+            friendName={isGroup ? 'everyone' : friendName}
+          />
         )}
       </MeetHeader>
 
@@ -824,17 +1025,19 @@ export default function MeetPage() {
                 )}
                 {proposal.by === user.id ? (
                   <>
-                    <p className={m.proposalMeta}>Waiting for {friendName} to accept…</p>
+                    <p className={m.proposalMeta}>Waiting for {waitingNames || friendName} to accept…</p>
                     <div className={m.row}>
                       <button type="button" className={m.btnGhost} onClick={withdrawProposal} disabled={busy}>
                         {busy ? 'Withdrawing…' : 'Withdraw'}
                       </button>
                     </div>
                   </>
+                ) : iAccepted ? (
+                  <p className={m.proposalMeta}>You accepted · waiting for {waitingNames} to accept…</p>
                 ) : (
                   <div className={m.row}>
                     <button type="button" className={m.btn} onClick={acceptProposal} disabled={busy}>
-                      {busy ? 'Starting…' : 'Accept & start'}
+                      {busy ? 'Saving…' : lastToAccept ? 'Accept & start' : 'Accept'}
                     </button>
                     <button type="button" className={m.btnGhost} onClick={rejectProposal} disabled={busy}>
                       Decline
@@ -937,27 +1140,65 @@ export default function MeetPage() {
                   letter: friendLetter,
                   name: friendName,
                   arrived: friendArrived,
+                  onFind: friendLoc ? findFriend : null,
+                  finding: findingId === friendId,
                   sub: friendLoc ? (
                     <>
                       {friendEta != null && `~${fmtMin(friendEta)} · `}
                       {roughFriend && `approximate (±${fmtKm(friendLoc.accuracy / 1000)}) · `}
                       {fmtSpeed(friendLoc.speedKmh) && `${fmtSpeed(friendLoc.speedKmh)} · `}
-                      updated {friendAgo}
+                      {friendStale ? <span className={m.stale}>last seen {friendAgo}</span> : <>updated {friendAgo}</>}
                     </>
                   ) : (
                     'Waiting for their location…'
                   ),
                   km: friendDistKm != null ? friendNav.progress?.remainingKm ?? friendDistKm : null,
                 },
+                ...extras.map((e) => ({
+                  key: e.id,
+                  letter: e.letter,
+                  name: e.name,
+                  arrived: e.arrived,
+                  sub: e.loc ? (
+                    <>
+                      {e.etaMin != null && `~${fmtMin(e.etaMin)} · `}
+                      {e.stale ? <span className={m.stale}>last seen {e.ago}</span> : <>updated {e.ago}</>}
+                    </>
+                  ) : (
+                    'Waiting for their location…'
+                  ),
+                  km: e.distKm,
+                  onFind: e.loc ? () => findPerson(e.id) : null,
+                  finding: findingId === e.id,
+                })),
               ]}
             />
+            {friendStale && !friendArrived && (
+              <p className={m.hint}>
+                {friendName}&apos;s phone stopped sending their location. Ask them to open Halfway and it picks up
+                again straight away.
+              </p>
+            )}
             <p className={m.hint}>{shareHint}</p>
           </>
         )}
 
-        <button type="button" className={m.btnDanger} onClick={endMeetup} disabled={busy}>
-          {status === 'live' ? 'End meetup' : 'Cancel meetup'}
-        </button>
+        <AddPeople
+          userId={user.id}
+          takenIds={[...peopleIds, ...invitedIds]}
+          invited={invitedIds.map((uid) => ({ id: uid, profile: profiles[uid] }))}
+          onAdd={addPerson}
+        />
+
+        {iAmOriginal ? (
+          <button type="button" className={m.btnDanger} onClick={endMeetup} disabled={busy}>
+            {status === 'live' ? (isGroup ? 'End meetup for everyone' : 'End meetup') : 'Cancel meetup'}
+          </button>
+        ) : (
+          <button type="button" className={m.btnDanger} onClick={leaveMeetup} disabled={busy}>
+            Leave meetup
+          </button>
+        )}
       </aside>
     </div>
   );

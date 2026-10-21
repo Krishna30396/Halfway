@@ -118,6 +118,16 @@ function PanTo({ target }) {
   return null;
 }
 
+// "Find my friend": fly in close on their latest spot (n changes on every tap).
+function FocusOn({ target }) {
+  const map = useMap();
+  useEffect(() => {
+    if (target) map.flyTo([target.lat, target.lng], Math.max(map.getZoom(), 17), { duration: 0.8 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, target?.n]);
+  return null;
+}
+
 // The friend's updates arrive every few seconds; glide between them instead of
 // letting react-leaflet jump the marker (it only sees the first position).
 function GlidingMarker({ lat, lng, children, ...props }) {
@@ -173,6 +183,7 @@ export default function MeetMap({
   friend,
   friendLetter,
   friendName,
+  others = [],
   midpoint,
   places,
   selectedPlaceId,
@@ -188,6 +199,7 @@ export default function MeetMap({
   onMapClick,
   fitKey,
   panTarget,
+  focusOn,
   insets,
   meTag,
   friendTag,
@@ -203,6 +215,7 @@ export default function MeetMap({
   const points = [
     me && [me.lat, me.lng],
     friend && [friend.lat, friend.lng],
+    ...others.map((o) => [o.lat, o.lng]),
     dest && [dest.lat, dest.lng],
     proposal && [proposal.lat, proposal.lng],
     !dest && midpoint,
@@ -218,6 +231,7 @@ export default function MeetMap({
       <AutoResize />
       {follow ? <Follow target={follow} /> : <Fit points={points} fitKey={fitKey} insets={insets} />}
       <PanTo target={panTarget} />
+      <FocusOn target={focusOn} />
       {onMapClick && <Clicks onClick={onMapClick} />}
 
       {link && link.filter(Boolean).length >= 2 && (
@@ -338,6 +352,19 @@ export default function MeetMap({
           )}
         </GlidingMarker>
       )}
+
+      {/* Everyone else in a group meetup. */}
+      {others.map((o) => (
+        <GlidingMarker key={o.id} lat={o.lat} lng={o.lng} icon={personIcon(o.letter || '?', false)} zIndexOffset={550}>
+          {o.tag ? (
+            <Tooltip key="tag" direction="top" offset={[0, -18]} permanent className={`${m.eta} ${m.etaFriend}`}>
+              {o.tag}
+            </Tooltip>
+          ) : (
+            <Tooltip key="name" direction="top" offset={[0, -16]}>{o.name}</Tooltip>
+          )}
+        </GlidingMarker>
+      ))}
 
       {me && (
         <>

@@ -247,6 +247,63 @@
   text-align: right;
 }
 
+/* Tappable pill: refresh the friend's spot and zoom to them. */
+.statusBtn {
+  width: 100%;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.statusBtn:active {
+  transform: scale(0.985);
+}
+
+.statusBtn:focus-visible,
+.findBtn:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin: 0 4px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  opacity: 0.8;
+  animation: hw-spin 0.7s linear infinite;
+}
+
+@keyframes hw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.findBtn {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--contour);
+  background: var(--panel);
+  color: inherit;
+  cursor: pointer;
+}
+
+.stale {
+  color: var(--ember);
+  font-weight: 600;
+}
+
 /* Turn-by-turn banner (navigation) takes the status pill's place. */
 .bannerSlot {
   animation: hw-rise var(--t-med) var(--ease-out) backwards;
@@ -1071,4 +1128,24 @@
   .mapLayer {
     transition: none;
   }
+}
+
+/* ---- Group meetups: invited people + "Add people" ------------------------------ */
+.addPeople {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.addList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.addHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }

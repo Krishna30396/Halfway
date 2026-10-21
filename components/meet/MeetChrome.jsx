@@ -80,16 +80,35 @@ export function MeetHeader({ me, letter, alert, menu, children }) {
 }
 
 /** Dark ink pill: "● Tracking live · paani is 6 min away · 5s ago". */
-export function StatusPill({ label, detail, ago, live = true }) {
-  return (
-    <div className={m.status} role="status" aria-live="polite">
+export function StatusPill({ label, detail, ago, live = true, onClick, busy, friendName }) {
+  const inner = (
+    <>
       <span className={`${m.liveDot} ${live ? '' : m.idleDot}`} aria-hidden="true" />
       <span className={m.statusText}>
         <strong>{label}</strong>
         {detail && <span className={m.statusDetail}> · {detail}</span>}
       </span>
-      {ago && <span className={m.ago}>{ago}</span>}
-    </div>
+      {busy ? <span className={m.spinner} aria-hidden="true" /> : ago && <span className={m.ago}>{ago}</span>}
+    </>
+  );
+  if (!onClick) {
+    return (
+      <div className={m.status} role="status" aria-live="polite">
+        {inner}
+      </div>
+    );
+  }
+  // Tapping the pill refreshes the friend's spot and zooms the map onto them.
+  return (
+    <button
+      type="button"
+      className={`${m.status} ${m.statusBtn}`}
+      onClick={onClick}
+      aria-busy={busy || undefined}
+      aria-label={`${label}${detail ? `, ${detail}` : ''}. Show ${friendName} on the map`}
+    >
+      {inner}
+    </button>
   );
 }
 
@@ -187,6 +206,18 @@ export function PeopleList({ rows }) {
             </span>
           </span>
           {r.km != null && <span className={m.personValue}>{fmtKm(r.km)}</span>}
+          {r.onFind && (
+            <button
+              type="button"
+              className={m.findBtn}
+              onClick={r.onFind}
+              aria-busy={r.finding || undefined}
+              aria-label={`Refresh and show ${r.name} on the map`}
+              title={`Show ${r.name}`}
+            >
+              {r.finding ? <span className={m.spinner} aria-hidden="true" /> : <FitIcon />}
+            </button>
+          )}
         </li>
       ))}
     </ul>
@@ -217,13 +248,17 @@ export function HalfwayRow({ name, busy, onSuggest }) {
 }
 
 /** Text for the ink status pill, from the real meetup state. */
-export function meetStatusPill({ status, friendName, friendLoc, friendArrived, friendEta, friendDistKm, friendNav, friendAgo }) {
+export function meetStatusPill({ status, friendName, friendLoc, friendArrived, friendEta, friendDistKm, friendNav, friendAgo, friendStale }) {
   if (status === 'live') {
+    const stale = friendStale && !friendArrived;
     return {
-      label: 'Tracking live',
+      label: stale ? 'Not updating' : 'Tracking live',
+      live: !stale,
       detail: friendArrived
         ? `${friendName} has arrived`
-        : !friendLoc
+        : stale
+          ? `${friendName}'s last spot`
+          : !friendLoc
           ? `waiting for ${friendName}`
           : friendEta != null
             ? `${friendName} is ${fmtMin(friendEta)} away`
@@ -235,9 +270,9 @@ export function meetStatusPill({ status, friendName, friendLoc, friendArrived, f
   }
   return {
     label: 'Picking a place',
-    detail: friendLoc ? `with ${friendName}` : `waiting for ${friendName}'s location`,
+    detail: friendStale ? `${friendName}'s last spot` : friendLoc ? `with ${friendName}` : `waiting for ${friendName}'s location`,
     ago: friendAgo,
-    live: !!friendLoc,
+    live: !!friendLoc && !friendStale,
   };
 }
 

@@ -56,12 +56,15 @@ export default function NavigationMap({
   meLetter = 'Y',
   friend,
   friendLetter = '?',
+  others = [],
   dest,
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markers = useRef({});
   const glide = useRef({});
+  // Group meetups: a stable key so marker effects only rerun when someone moves.
+  const othersKey = others.map((o) => `${o.id}:${o.lat}:${o.lng}:${o.letter}`).join('|');
   // Bumped every time a style finishes loading (first load and theme switches),
   // since a new style drops our route layers and they must be re-added.
   const [styleVersion, setStyleVersion] = useState(0);
@@ -163,7 +166,8 @@ export default function NavigationMap({
   // Switching views swaps my marker between arrow and pin. Declared
   // before the marker effect so the old markers are gone before re-placing.
   useEffect(() => {
-    for (const key of ['me', 'friend']) {
+    for (const key of Object.keys(markers.current)) {
+      if (key === 'dest') continue;
       markers.current[key]?.remove();
       delete markers.current[key];
     }
@@ -190,7 +194,7 @@ export default function NavigationMap({
           .addTo(map);
         markers.current[key] = m;
       }
-      if (key === 'friend') {
+      if (key === 'friend' || key.startsWith('o:')) {
         // Their updates arrive every few seconds; glide between them.
         glideMarker(
           (glide.current[key] ||= {}),
@@ -208,13 +212,20 @@ export default function NavigationMap({
     };
     place('me', me, () => (overview ? pinEl(meLetter, true) : chevronEl()), overview ? null : bearing);
     place('friend', friend, () => pinEl(friendLetter, false), null);
+    // Everyone else in a group meetup; drop markers for people who left.
+    const keep = new Set(others.map((o) => `o:${o.id}`));
+    for (const key of Object.keys(markers.current)) {
+      if (key.startsWith('o:') && !keep.has(key)) place(key, null);
+    }
+    for (const o of others) place(`o:${o.id}`, o, () => pinEl(o.letter || '?', false), null);
     place('dest', overview ? null : dest, destEl, null);
-  }, [me, friend, dest, bearing, overview, meLetter, friendLetter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me, friend, dest, bearing, overview, meLetter, friendLetter, othersKey]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !overview || paused) return;
-    const pts = [me, friend].filter(Boolean);
+    const pts = [me, friend, ...others].filter(Boolean);
     if (!pts.length) return;
     if (pts.length === 1) {
       map.easeTo({ center: toLngLat(pts[0]), zoom: 15, bearing: 0, pitch: 0, padding: 0, duration: 700 });
@@ -229,7 +240,8 @@ export default function NavigationMap({
       ],
       { padding: { top: 130, bottom: 110, left: 60, right: 60 }, bearing: 0, pitch: 0, maxZoom: 16, duration: 700 }
     );
-  }, [overview, me?.lat, me?.lng, friend?.lat, friend?.lng, paused]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overview, me?.lat, me?.lng, friend?.lat, friend?.lng, othersKey, paused]);
 
   useEffect(() => {
     const map = mapRef.current;

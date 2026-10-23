@@ -1,0 +1,128 @@
+.page {
+  min-height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--gutter) var(--space-12);
+  background: var(--color-canvas);
+  color: var(--color-text);
+}
+
+.top h1 {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-heavy);
+}
+
+.top p {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
+}
+
+.toggle {
+  display: inline-flex;
+  gap: var(--space-1);
+  margin-top: var(--space-4);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-sunken);
+}
+
+.toggle button {
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.toggle button[aria-pressed='true'] {
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-1);
+}
+
+.group {
+  margin-top: var(--space-8);
+}
+
+.group h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.item + .item {
+  margin-top: var(--space-5);
+}
+
+/* Android heads-up / lock-screen card. Collapsed: one line each, like the banner. */
+.note {
+  padding: var(--space-3) var(--space-4) 14px;
+  border-radius: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-2);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+
+.title,
+.preview {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.title {
+  margin-top: 6px;
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+}
+
+.preview {
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.expanded .title,
+.expanded .preview {
+  white-space: normal;
+}
+
+.when {
+  margin: var(--space-2) var(--space-1) 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.meta {
+  margin: 2px var(--space-1) 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.meta code {
+  font-size: inherit;
+}

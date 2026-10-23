@@ -14,7 +14,7 @@ import { notify } from '@/lib/notify';
 import { fetchProfiles, displayName, initialOf } from '@/lib/social';
 import { haversine, pointAtFraction, fairCenter } from '@/lib/geo';
 import { useLiveRoute, fmtKm, fmtMin } from '@/lib/navigation';
-import { sendGapMs, withSpeed, fmtSpeed } from '@/lib/liveTracking';
+import { sendGapMs, withSpeed, fmtSpeed, acceptFix, isArrived, myLocationStatus, PROBE_AFTER_MS } from '@/lib/liveTracking';
 import { rememberPosition } from '@/lib/localPlaces';
 import NavBanner from '@/components/NavBanner';
 import FriendSpot from '@/components/FriendSpot';
@@ -96,6 +96,7 @@ export default function MeetPage() {
   const [selectedPlaceId, setSelectedPlaceId] = useState(null);
   const [droppedPin, setDroppedPin] = useState(null);
   const [recenter, setRecenter] = useState(0);
+  const [followKey, setFollowKey] = useState(0);
   const [navMode, setNavMode] = useState(false);
   const [pov, setPov] = useState('me');
   // "Where's my friend?": re-read their latest spot, then zoom the map onto it.
@@ -104,6 +105,8 @@ export default function MeetPage() {
 
   const layout = useSheetLayout();
   const myPosRef = useRef(null);
+  const pendingFixRef = useRef(null); // a suspicious jump waiting for a second reading
+  const arrivedRef = useRef({}); // who has arrived (kept while they walk around the entrance)
   // True after "type where you are": GPS mustn't move the typed spot.
   const manualRef = useRef(false);
   const [manual, setManual] = useState(false);
@@ -214,12 +217,12 @@ export default function MeetPage() {
   // ---- My location: watch while sharing, push to the friend ------------------
   // Phones often report a rough Wi-Fi/network guess first (or in between GPS
   // fixes). Never let one of those replace a good fix from the last minute.
+  // A wild jump (a km away in seconds) waits for a second reading to agree.
   const takeFix = useCallback((p) => {
     if (manualRef.current) return;
-    const cur = myPosRef.current;
-    const worse = cur?.accuracy != null && p.accuracy != null && p.accuracy > Math.max(100, cur.accuracy * 2);
-    if (cur?.at && worse && Date.now() - cur.at < 60000) return;
-    const fix = { ...p, at: Date.now() };
+    const { fix, pending } = acceptFix(myPosRef.current, pendingFixRef.current, p, Date.now());
+    pendingFixRef.current = pending;
+    if (!fix) return;
     if (!(p.accuracy > ROUGH_M)) rememberPosition(p.lat, p.lng);
     myPosRef.current = fix;
     setMyPos(fix);
@@ -318,9 +321,41 @@ export default function MeetPage() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [sharing, friendName, geoAttempt]);
 
+  // Standing still (red light, waiting at the place) the GPS sends nothing new,
+  // which isn't a fault. On screen, ask for a fresh reading every 30 s so the
+  // "isn't updating" warning only shows when the phone really can't get one.
+  useEffect(() => {
+    if (!sharing || !navigator.geolocation) return;
+    const t = setInterval(() => {
+      if (document.visibilityState !== 'visible' || manualRef.current) return;
+      const cur = myPosRef.current;
+      if (cur && Date.now() - cur.at < PROBE_AFTER_MS) return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) =>
+          takeFix({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            speed: pos.coords.speed,
+          }),
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
+      );
+    }, 15000);
+    return () => clearInterval(t);
+  }, [sharing, takeFix]);
+
   const roughMe = !manual && myPos?.accuracy > ROUGH_M;
   const roughFriend = friendLoc?.accuracy > ROUGH_M;
   const myDistKm = dest && myPos ? haversine([myPos.lat, myPos.lng], [dest.lat, dest.lng]) : null;
+  // Arrived, allowing for GPS error; remembered per person and place.
+  const arrivedFor = (who, distKm, accuracyM) => {
+    const key = `${who}@${dest?.lat},${dest?.lng}`;
+    const v = isArrived(arrivedRef.current[key], distKm, accuracyM);
+    arrivedRef.current[key] = v;
+    return v;
+  };
+  const myArrived = arrivedFor('me', myDistKm, myPos?.accuracy);
   // Road routes to the meeting place for both people, re-routed when either strays.
   const myNav = useLiveRoute(status === 'live' ? myPos : null, dest);
   const friendNav = useLiveRoute(status === 'live' ? friendLoc : null, dest, {
@@ -464,7 +499,7 @@ export default function MeetPage() {
     if (status !== 'live' || myDistKm == null || almostSent.current) return;
     if (myDistKm > ALMOST_KM * 2) wasFar.current = true;
     const close = myDistKm <= ALMOST_KM || (myEtaMin != null && myEtaMin <= ALMOST_MIN);
-    if (!wasFar.current || !close || myDistKm <= ARRIVE_KM) return;
+    if (!wasFar.current || !close || myArrived) return;
     almostSent.current = true;
     const key = `halfway-almost-${id}`;
     let already = false;
@@ -473,11 +508,11 @@ export default function MeetPage() {
       localStorage.setItem(key, '1');
     } catch {}
     if (!already) sendLocation(true).then(() => notify('almost_there', id));
-  }, [status, myDistKm, myEtaMin, id, sendLocation]);
+  }, [status, myDistKm, myEtaMin, myArrived, id, sendLocation]);
 
   // ---- Arrival: tell the friend once ------------------------------------------
   useEffect(() => {
-    if (status !== 'live' || myDistKm == null || myDistKm > ARRIVE_KM || arrivedSent.current) return;
+    if (status !== 'live' || !myArrived || arrivedSent.current) return;
     arrivedSent.current = true;
     const key = `halfway-arrived-${id}`;
     let already = false;
@@ -486,7 +521,7 @@ export default function MeetPage() {
       localStorage.setItem(key, '1');
     } catch {}
     if (!already) sendLocation(true).then(() => notify('arrived', id));
-  }, [status, myDistKm, id, sendLocation]);
+  }, [status, myArrived, id, sendLocation]);
 
   // ---- Keep the screen awake while travelling (web apps pause GPS when hidden) --
   useEffect(() => {
@@ -796,8 +831,8 @@ export default function MeetPage() {
   const selectedPlace = places?.find((p) => p.id === selectedPlaceId) || null;
   const friendDistKm =
     dest && friendLoc ? haversine([friendLoc.lat, friendLoc.lng], [dest.lat, dest.lng]) : null;
-  const friendArrived = friendDistKm != null && friendDistKm <= ARRIVE_KM;
-  const iArrived = myDistKm != null && myDistKm <= ARRIVE_KM;
+  const friendArrived = arrivedFor(friendId, friendDistKm, friendLoc?.accuracy);
+  const iArrived = myArrived;
   const extraLocCount = extraIds.filter((p) => locs[p]).length;
   const fitKey = [!!myPos, !!friendLoc, extraLocCount, dest?.lat, proposal?.lat, halfway?.point?.[0], recenter, navMode, layout.wide].join('|');
 
@@ -843,7 +878,7 @@ export default function MeetPage() {
       name: displayName(profile),
       letter: initialOf(profile),
       distKm,
-      arrived: distKm != null && distKm <= ARRIVE_KM,
+      arrived: arrivedFor(uid, distKm, loc?.accuracy),
       etaMin: loc?.eta_min ?? null,
       ago: loc?.updated_at ? fmtAgo(loc.updated_at, now) : null,
       stale: !!loc?.updated_at && now - new Date(loc.updated_at).getTime() > STALE_MS,
@@ -858,7 +893,27 @@ export default function MeetPage() {
       letter: e.letter,
       name: e.name,
       tag: status === 'live' ? (e.arrived ? 'Arrived' : e.etaMin != null ? fmtMin(e.etaMin) : null) : null,
+      live: !e.stale,
     }));
+  // Pins pulse while that person is sharing live; dim when their spot is out of date.
+  const myLocState = myLocationStatus({ sharing, manual, pos: myPos, now });
+  const meLive = sharing && myPos ? !myLocState : undefined;
+  const friendLive = friendLoc ? !friendStale : undefined;
+  // "My location": back to following me (navigation) or fly in on me (map).
+  const locateMe = () => {
+    if (!myPos) return;
+    setPov('me');
+    setFollowKey((n) => n + 1);
+    setFriendFocus({ lat: myPos.lat, lng: myPos.lng, n: Date.now(), me: true });
+  };
+  const locText =
+    myLocState?.kind === 'finding'
+      ? 'Finding your location…'
+      : myLocState?.kind === 'stale'
+        ? `Your location isn’t updating (last fix ${myLocState.ageSec}s ago). Check GPS and signal.`
+        : myLocState?.kind === 'rough'
+          ? `Your location is approximate (±${fmtKm(myLocState.accuracyM / 1000)}), so your pin may be off.`
+          : null;
 
   let pill = meetStatusPill({ status, friendName, friendLoc, friendArrived, friendEta, friendDistKm, friendNav, friendAgo, friendStale });
   if (isGroup) {
@@ -907,7 +962,10 @@ export default function MeetPage() {
             friendLetter={friendLetter}
             others={othersOnMap}
             dest={dest}
-            focusOn={friendFocus}
+            focusOn={friendFocus?.me ? null : friendFocus}
+            followKey={followKey}
+            meLive={meLive}
+            friendLive={friendLive}
           />
         ) : (
           <MeetMap
@@ -933,6 +991,8 @@ export default function MeetPage() {
             insets={layout.insets}
             meTag={meTag}
             friendTag={friendTag}
+            meLive={meLive}
+            friendLive={friendLive}
             link={
               status === 'planning' && halfway
                 ? [myPos && [myPos.lat, myPos.lng], halfway.point, friendLoc && [friendLoc.lat, friendLoc.lng]]
@@ -969,9 +1029,22 @@ export default function MeetPage() {
             friendName={isGroup ? 'everyone' : friendName}
           />
         )}
+        {/* Always on screen (the sheet can be hidden while navigating). */}
+        {sharing && (locText || geoError) && (
+          <div className={`${m.locStrip} ${myLocState?.kind === 'finding' && !geoError ? m.locStripCalm : ''}`} role="status">
+            <span>{geoError || locText}</span>
+            {(geoError || myLocState?.kind !== 'finding') && (
+              <button type="button" onClick={retryLocation}>
+                Try again
+              </button>
+            )}
+          </div>
+        )}
       </MeetHeader>
 
       <MapControls
+        lowered={sharing && !!(locText || geoError)}
+        onLocate={myPos ? locateMe : null}
         navigating={navigating}
         onFit={() => setRecenter((n) => n + 1)}
         onNavigate={status === 'live' && dest ? startNav : null}

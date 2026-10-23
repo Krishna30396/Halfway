@@ -41,6 +41,13 @@ export const FitIcon = (p) => (
   </svg>
 );
 
+export const LocateIcon = (p) => (
+  <svg {...base} {...p}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+  </svg>
+);
+
 export const NavIcon = (p) => (
   <svg {...base} {...p}>
     <path d="M3 11 22 2l-9 19-2-8-8-2z" />

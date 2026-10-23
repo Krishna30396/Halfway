@@ -305,6 +305,47 @@
 }
 
 /* Turn-by-turn banner (navigation) takes the status pill's place. */
+.controls.controlsLow {
+  top: calc(var(--top-safe) + 184px);
+}
+
+/* My own location problems: always visible, never a pop-up. */
+.locStrip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 14px;
+  border-radius: var(--r-md);
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--color-error, #c2410c) 45%, var(--contour));
+  box-shadow: var(--shadow-2);
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text);
+  animation: hw-rise var(--t-med) var(--ease-out) backwards;
+}
+
+.locStrip span {
+  flex: 1;
+}
+
+.locStrip button {
+  flex: none;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--contour);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.locStripCalm {
+  border-color: var(--contour);
+}
+
 .bannerSlot {
   animation: hw-rise var(--t-med) var(--ease-out) backwards;
 }

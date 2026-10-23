@@ -6,7 +6,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import { fmtKm, fmtMin } from '@/lib/navigation';
 import { haversine } from '@/lib/geo';
 import { approxMinutes } from './tokens';
-import { ArrowLeft, BellIcon, ChevronDown, FitIcon, NavIcon, CloseIcon, PinIcon } from './icons';
+import { ArrowLeft, BellIcon, ChevronDown, FitIcon, NavIcon, CloseIcon, PinIcon, LocateIcon } from './icons';
 import m from './Meet.module.css';
 
 const firstName = (p) => {
@@ -113,9 +113,10 @@ export function StatusPill({ label, detail, ago, live = true, onClick, busy, fri
 }
 
 /** Right-edge map controls: fit everyone, navigate / exit, and "See friend" while navigating. */
-export function MapControls({ onFit, onNavigate, navigating, onExitNav, pill }) {
+export function MapControls({ onFit, onLocate, onNavigate, navigating, onExitNav, pill, lowered }) {
   return (
-    <div className={m.controls}>
+    // `lowered`: a location warning sits under the header, keep the buttons clear of it.
+    <div className={`${m.controls} ${lowered ? m.controlsLow : ''}`}>
       <div className={m.ctrlCol}>
         {navigating ? (
           <button type="button" className={m.ctrlBtn} onClick={onExitNav} aria-label="Exit navigation" title="Exit navigation">
@@ -124,6 +125,11 @@ export function MapControls({ onFit, onNavigate, navigating, onExitNav, pill }) 
         ) : (
           <button type="button" className={m.ctrlBtn} onClick={onFit} aria-label="Show everyone" title="Show everyone">
             <FitIcon />
+          </button>
+        )}
+        {onLocate && (
+          <button type="button" className={m.ctrlBtn} onClick={onLocate} aria-label="My location" title="My location">
+            <LocateIcon />
           </button>
         )}
         {onNavigate && !navigating && (

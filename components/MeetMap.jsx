@@ -32,11 +32,15 @@ function cachedIcon(key, make) {
 }
 
 // Me = ember, friend = ink. CSS variables work here (it's HTML), so pins follow the theme.
-const personIcon = (letter, isMe) =>
-  cachedIcon(`person:${letter}:${isMe}`, () =>
+// `live`: true = sharing right now (pulsing ring), false = location is out of
+// date (dimmed, no ring), undefined = not sharing yet.
+const personIcon = (letter, isMe, live) =>
+  cachedIcon(`person:${letter}:${isMe}:${live}`, () =>
     L.divIcon({
       className: '',
-      html: `<div class="person-pin${isMe ? ' person-pin-me' : ''}" style="background:${
+      html: `<div class="person-pin${isMe ? ' person-pin-me' : ''}${live ? ' person-pin-live' : ''}${
+        live === false ? ' person-pin-stale' : ''
+      }" style="background:${
         isMe ? 'var(--color-primary)' : 'var(--color-friend)'
       };color:${isMe ? 'var(--on-ember)' : 'var(--on-ink)'}">${esc(letter)}</div>`,
       iconSize: [32, 32],
@@ -204,6 +208,8 @@ export default function MeetMap({
   meTag,
   friendTag,
   link,
+  meLive,
+  friendLive,
 }) {
   const colors = useMapColors();
   routeColor ||= colors.ember;
@@ -340,7 +346,7 @@ export default function MeetMap({
         <GlidingMarker
           lat={friend.lat}
           lng={friend.lng}
-          icon={personIcon(friendLetter || '?', false)}
+          icon={personIcon(friendLetter || '?', false, friendLive)}
           zIndexOffset={600}
         >
           {friendTag ? (
@@ -355,7 +361,7 @@ export default function MeetMap({
 
       {/* Everyone else in a group meetup. */}
       {others.map((o) => (
-        <GlidingMarker key={o.id} lat={o.lat} lng={o.lng} icon={personIcon(o.letter || '?', false)} zIndexOffset={550}>
+        <GlidingMarker key={o.id} lat={o.lat} lng={o.lng} icon={personIcon(o.letter || '?', false, o.live)} zIndexOffset={550}>
           {o.tag ? (
             <Tooltip key="tag" direction="top" offset={[0, -18]} permanent className={`${m.eta} ${m.etaFriend}`}>
               {o.tag}
@@ -368,14 +374,15 @@ export default function MeetMap({
 
       {me && (
         <>
-          {me.accuracy > 0 && me.accuracy < 300 && (
+          {/* How sure the phone is; a big circle is the honest answer to a rough fix. */}
+          {me.accuracy > 0 && me.accuracy < 5000 && (
             <Circle
               center={[me.lat, me.lng]}
               radius={me.accuracy}
               pathOptions={{ color: colors.ember, weight: 1, fillOpacity: 0.08, opacity: 0.4 }}
             />
           )}
-          <Marker position={[me.lat, me.lng]} icon={personIcon(meLetter || 'Y', true)} zIndexOffset={700}>
+          <Marker position={[me.lat, me.lng]} icon={personIcon(meLetter || 'Y', true, meLive)} zIndexOffset={700}>
             {meTag ? (
               <Tooltip key="tag" direction="top" offset={[0, -18]} permanent className={`${m.eta} ${m.etaMe}`}>
                 {meTag}

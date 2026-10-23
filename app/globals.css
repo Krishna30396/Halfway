@@ -303,17 +303,53 @@ a {
   box-shadow: 0 2px 6px rgba(30, 42, 36, 0.4);
 }
 
-.person-pin-me {
-  animation: me-pulse 2s ease-out infinite;
+/* Sharing live right now: a ring in the pin's own colour pulses outwards.
+   Out of date: dimmed and still, so a frozen pin never looks live. */
+.person-pin {
+  position: relative;
 }
 
-@keyframes me-pulse {
+.person-pin-live::before,
+.person-pin-live::after,
+.live-ring::before,
+.live-ring::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 3px solid var(--ring, currentColor);
+  opacity: 0;
+  pointer-events: none;
+  animation: live-ring 2.2s ease-out infinite;
+}
+
+.person-pin-live::after,
+.live-ring::after {
+  animation-delay: 1.1s;
+}
+
+.person-pin-live {
+  --ring: var(--color-friend);
+}
+
+.person-pin-me.person-pin-live {
+  --ring: var(--color-primary);
+}
+
+@keyframes live-ring {
   0% {
-    box-shadow: 0 0 0 0 rgba(242, 84, 27, 0.5), 0 2px 6px rgba(23, 23, 26, 0.35);
+    transform: scale(1);
+    opacity: 0.7;
   }
   100% {
-    box-shadow: 0 0 0 16px rgba(242, 84, 27, 0), 0 2px 6px rgba(23, 23, 26, 0.35);
+    transform: scale(2.4);
+    opacity: 0;
   }
+}
+
+.person-pin-stale {
+  opacity: 0.55;
+  filter: grayscale(0.6);
 }
 
 .midpoint-pin {
@@ -351,8 +387,13 @@ a {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .person-pin-me {
+  .person-pin-live::before,
+  .person-pin-live::after,
+  .live-ring::before,
+  .live-ring::after {
     animation: none;
+    opacity: 0.35;
+    transform: scale(1.5);
   }
 }
 

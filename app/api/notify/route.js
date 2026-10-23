@@ -4,6 +4,7 @@ import { getMessaging } from 'firebase-admin/messaging';
 import { createClient } from '@supabase/supabase-js';
 import { haversine } from '@/lib/geo';
 import { emailReady, sendAlertEmail } from '@/lib/email';
+import { plain, TEST_ALERT, friendText, meetupText } from '@/lib/notifyText';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -127,16 +128,12 @@ const FRIEND_TYPES = {
     status: 'pending',
     sender: 'requester',
     recipient: 'addressee',
-    title: (n) => `🤝 ${plain(n)} wants to be friends`,
-    body: () => 'Tap to accept on Halfway',
   },
   friend_accepted: {
     email: true,
     status: 'accepted',
     sender: 'addressee',
     recipient: 'requester',
-    title: (n) => `🤝 ${plain(n)} accepted your friend request`,
-    body: () => 'You can meet up now',
   },
 };
 
@@ -201,15 +198,10 @@ function isDuplicate(key) {
 
 const fail = (error, status) => Response.json({ error }, { status });
 
-// "@krishna" → "krishna": names read as a person, and the sender line
-// ("krishna (via Halfway)") already says who it's from.
-const plain = (n) => String(n).replace(/^@/, '');
-
 const fmtKm = (km) => (km == null ? null : km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`);
 
-// One message per meetup event, in three levels: who (the sender name), what
-// (title: emoji + action + place) and one short detail line (preview). The
-// same words go in the phone notification and the email subject / preview.
+// Looks up where everyone is, then words the message for this recipient
+// (the words themselves live in lib/notifyText.js).
 async function meetupMessage(admin, type, m, n, caller, recipient) {
   const place =
     type === 'place_proposed'
@@ -226,54 +218,7 @@ async function meetupMessage(admin, type, m, n, caller, recipient) {
   const away = (l) => (l && place?.lat != null ? fmtKm(haversine([l.lat, l.lng], [place.lat, place.lng])) : null);
   const apart = mine && theirs ? fmtKm(haversine([mine.lat, mine.lng], [theirs.lat, theirs.lng])) : null;
   const eta = theirs?.eta_min != null ? `~${Math.max(1, Math.round(theirs.eta_min))} min` : null;
-  const join = (...parts) => parts.filter(Boolean).join(' · ');
-
-  switch (type) {
-    case 'meet_request':
-      return { title: `👋 ${n} wants to meet up`, preview: 'Tap to share your location and pick a place', button: 'Share my location' };
-    case 'meet_cancelled':
-      return { title: `🚫 ${n} cancelled the meetup`, preview: 'You can start a new one any time' };
-    case 'meet_accepted':
-      return { title: `🎉 ${n} is in`, preview: join(apart && `${apart} apart`, 'pick a place to meet'), button: 'Pick a place' };
-    case 'meet_declined':
-      return { title: `${n} can't meet right now`, preview: 'Your meetup request was declined' };
-    case 'place_proposed':
-      return {
-        title: `📍 ${n} suggested ${place.name}`,
-        preview: join(away(mine) && `${away(mine)} from you`, 'tap to accept'),
-        details: [['Place', place.name], ['From you', away(mine)], [`From ${n}`, away(theirs)]],
-        map: place,
-        button: 'Accept or suggest another',
-      };
-    case 'place_rejected':
-      return { title: `↩️ ${n} passed on that place`, preview: 'Suggest somewhere else' };
-    case 'place_agreed':
-      return {
-        title: `✅ Meeting ${n} at ${place.name}`,
-        preview: join(away(mine) && `${away(mine)} from you`, eta && `${n} is ${eta} away`),
-        details: [['Place', place.name], ['From you', away(mine)], [`${n} arrives in`, eta]],
-        map: place,
-        button: 'Start navigation',
-      };
-    case 'almost_there':
-      return { title: `🛵 ${n} is almost there`, preview: place ? `A few minutes from ${place.name}` : 'A few minutes away' };
-    case 'arrived':
-      return { title: `📍 ${n} has arrived`, preview: place ? `At ${place.name}` : 'At the meeting place' };
-    case 'meet_ended':
-      return { title: `🏁 ${n} ended the meetup`, preview: 'Location sharing has stopped' };
-    case 'member_invited':
-      return {
-        title: `👥 ${n} added you to a meetup`,
-        preview: m.status === 'live' && place ? `Heading to ${place.name}` : 'Tap to join and pick a place together',
-        button: 'Join the meetup',
-      };
-    case 'member_joined':
-      return { title: `🎉 ${n} joined the meetup`, preview: 'You can all see each other now' };
-    case 'member_left':
-      return { title: `👋 ${n} left the meetup`, preview: 'Their location is no longer shared' };
-    default:
-      return {};
-  }
+  return meetupText(type, { n, place, status: m.status, away: { mine: away(mine), theirs: away(theirs) }, apart, eta });
 }
 
 export async function POST(request) {
@@ -326,8 +271,8 @@ export async function POST(request) {
   if (type === 'test') {
     // Only ever to the caller's own devices.
     recipient = caller;
-    title = 'Halfway test alert';
-    text = 'If you can read this on your lock screen, alerts will reach you.';
+    title = TEST_ALERT.title;
+    text = TEST_ALERT.preview;
     url = '/friends';
     tag = 'test';
     urgency = 'high';
@@ -341,12 +286,13 @@ export async function POST(request) {
     }
     recipient = f[rule.recipient];
     const n = await senderName();
-    title = rule.title(n);
-    text = rule.body(n);
+    const msg = friendText(type, n);
+    title = msg.title;
+    text = msg.preview;
     url = '/friends';
     tag = `friend-${id}`;
     email = !!rule.email;
-    emailExtra = { button: type === 'friend_request' ? 'Accept request' : 'Meet up' };
+    emailExtra = { button: msg.button };
   } else if (MEETUP_TYPES[type]) {
     const rule = MEETUP_TYPES[type];
     const { data: m } = await admin.from('meetups').select('*').eq('id', id).maybeSingle();

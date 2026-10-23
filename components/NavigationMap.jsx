@@ -23,6 +23,7 @@ const line = (coords) => ({
 function chevronEl() {
   const el = document.createElement('div');
   el.className = s.chevron;
+  el.style.setProperty('--ring', 'var(--ember)');
   el.innerHTML = `<svg viewBox="0 0 40 40" width="44" height="44"><circle cx="20" cy="20" r="18" style="fill:var(--ember)" stroke="#fff" stroke-width="3"/><path d="M20 9 L29 29 L20 24 L11 29 Z" style="fill:var(--on-ember)"/></svg>`;
   return el;
 }
@@ -30,6 +31,7 @@ function chevronEl() {
 function pinEl(letter, isMe) {
   const el = document.createElement('div');
   el.className = `${s.pin} ${isMe ? s.pinMe : s.pinFriend}`;
+  el.style.setProperty('--ring', isMe ? 'var(--ember)' : 'var(--ink-solid)');
   el.textContent = letter;
   return el;
 }
@@ -59,13 +61,16 @@ export default function NavigationMap({
   others = [],
   dest,
   focusOn,
+  followKey,
+  meLive,
+  friendLive,
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markers = useRef({});
   const glide = useRef({});
   // Group meetups: a stable key so marker effects only rerun when someone moves.
-  const othersKey = others.map((o) => `${o.id}:${o.lat}:${o.lng}:${o.letter}`).join('|');
+  const othersKey = others.map((o) => `${o.id}:${o.lat}:${o.lng}:${o.letter}:${o.live}`).join('|');
   // Bumped every time a style finishes loading (first load and theme switches),
   // since a new style drops our route layers and they must be re-added.
   const [styleVersion, setStyleVersion] = useState(0);
@@ -180,7 +185,7 @@ export default function NavigationMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const place = (key, pos, make, rotation) => {
+    const place = (key, pos, make, rotation, live) => {
       let m = markers.current[key];
       if (!pos) {
         m?.remove();
@@ -212,18 +217,22 @@ export default function NavigationMap({
         m.setLngLat(toLngLat(pos));
       }
       if (rotation != null) m.setRotation(rotation);
+      // Pulsing ring while they're sharing live; dimmed when out of date.
+      const el = m.getElement();
+      el.classList.toggle('live-ring', !!live);
+      el.classList.toggle('person-pin-stale', live === false);
     };
-    place('me', me, () => (overview ? pinEl(meLetter, true) : chevronEl()), overview ? null : bearing);
-    place('friend', friend, () => pinEl(friendLetter, false), null);
+    place('me', me, () => (overview ? pinEl(meLetter, true) : chevronEl()), overview ? null : bearing, meLive);
+    place('friend', friend, () => pinEl(friendLetter, false), null, friendLive);
     // Everyone else in a group meetup; drop markers for people who left.
     const keep = new Set(others.map((o) => `o:${o.id}`));
     for (const key of Object.keys(markers.current)) {
       if (key.startsWith('o:') && !keep.has(key)) place(key, null);
     }
-    for (const o of others) place(`o:${o.id}`, o, () => pinEl(o.letter || '?', false), null);
+    for (const o of others) place(`o:${o.id}`, o, () => pinEl(o.letter || '?', false), null, o.live);
     place('dest', overview ? null : dest, destEl, null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me, friend, dest, bearing, overview, meLetter, friendLetter, othersKey]);
+  }, [me, friend, dest, bearing, overview, meLetter, friendLetter, othersKey, meLive, friendLive]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -245,6 +254,13 @@ export default function NavigationMap({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overview, me?.lat, me?.lng, friend?.lat, friend?.lng, othersKey, paused, peeking]);
+
+  // "My location": stop looking around and follow me again.
+  useEffect(() => {
+    if (!followKey) return;
+    setPaused(false);
+    setPeeking(false);
+  }, [followKey]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -270,7 +286,7 @@ export default function NavigationMap({
       duration: 900,
       essential: true,
     });
-  }, [focus?.lat, focus?.lng, bearing, paused, overview, peeking]);
+  }, [focus?.lat, focus?.lng, bearing, paused, overview, peeking, followKey]);
 
   return (
     <div className={s.wrap}>

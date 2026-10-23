@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { pointAtFraction, haversine } from '@/lib/geo';
 import { useLiveRoute, fmtMin } from '@/lib/navigation';
-import { withSpeed } from '@/lib/liveTracking';
+import { withSpeed, acceptFix, isArrived, myLocationStatus } from '@/lib/liveTracking';
+import { fmtKm } from '@/lib/navigation';
 import NavBanner from '@/components/NavBanner';
 import FriendSpot from '@/components/FriendSpot';
 import NotificationToggle from '@/components/NotificationToggle';
@@ -30,6 +31,9 @@ const ME_START = { lat: 17.5106, lng: 78.3866 };
 const FRIEND_START = { lat: 17.4239, lng: 78.4209 };
 const ME = { id: 'me', username: 'krishna', display_name: 'Krishna' };
 const FRIEND_NAME = 'paani';
+// Group meetups: a third person, added after the meetup started.
+const THIRD_START = { lat: 17.4401, lng: 78.3489 };
+const THIRD = { id: 'ravi', name: 'ravi', letter: 'R' };
 const HALFWAY = { point: [17.4652, 78.4021], hub: { name: 'Kukatpally Housing Board', lat: 17.4652, lng: 78.4021 } };
 const PLACES = [
   { id: 'p1', name: 'Roastery Coffee House', category: 'cafe', lat: 17.4671, lng: 78.4003, distanceKm: 0.3 },
@@ -50,6 +54,8 @@ const at = (coords, f) => {
 };
 
 // ?state=nav|live|planning  &me=0.3&friend=0.5&pov=friend&play=1  &proposal=1
+// Test scenarios: &gps=finding|rough|jump|lost  &arrive=1 (at the place, GPS ±120 m)
+//                 &group=1 (a third person)  &stale=1 (paani's phone stopped sending)
 export default function NavSim() {
   const [params, setParams] = useState(null);
   const [paths, setPaths] = useState(null);
@@ -61,6 +67,8 @@ export default function NavSim() {
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [recenter, setRecenter] = useState(0);
+  const [followKey, setFollowKey] = useState(0);
+  const [focus, setFocus] = useState(null);
   const layout = useSheetLayout();
 
   useEffect(() => {
@@ -73,10 +81,16 @@ export default function NavSim() {
       pov: q.get('pov') === 'friend' ? 'friend' : 'me',
       play: q.get('play') === '1',
       proposal: q.get('proposal') === '1',
+      gps: q.get('gps') || 'ok',
+      arrive: q.get('arrive') === '1',
+      group: q.get('group') === '1',
+      stale: q.get('stale') === '1',
     });
     setNavMode(state === 'nav');
     if (state !== 'planning') {
-      Promise.all([pathTo(ME_START), pathTo(FRIEND_START)]).then(([me, friend]) => setPaths({ me, friend }));
+      Promise.all([pathTo(ME_START), pathTo(FRIEND_START), pathTo(THIRD_START)]).then(([me, friend, third]) =>
+        setPaths({ me, friend, third })
+      );
     }
   }, []);
 
@@ -89,14 +103,46 @@ export default function NavSim() {
   }, [params?.play]);
 
   const planning = params?.state === 'planning';
-  const fMe = params ? Math.min(1, params.me + tick * 0.004) : 0;
+  const fMe = params ? Math.min(1, (params.arrive ? 0.995 : params.me) + tick * 0.004) : 0;
   const fFriend = params ? Math.min(1, params.friend + tick * 0.004) : 0;
-  const myPos = planning ? { ...ME_START, accuracy: 12 } : paths ? at(paths.me, fMe) : null;
+  // What the phone's GPS reports, per scenario.
+  const reading = (() => {
+    if (planning) return { ...ME_START, accuracy: 12 };
+    if (!paths || params?.gps === 'finding') return null;
+    const p = at(paths.me, fMe);
+    if (params.arrive) return { lat: p.lat + 0.0016, lng: p.lng, accuracy: 120 }; // ~180 m off, ±120 m
+    if (params.gps === 'rough') return { lat: p.lat + 0.005, lng: p.lng - 0.004, accuracy: 900 };
+    // Every 6th reading a wild 2 km jump (the filter should hold it back).
+    if (params.gps === 'jump' && tick % 6 === 3) return { lat: p.lat + 0.018, lng: p.lng + 0.01, accuracy: 15 };
+    return { ...p, accuracy: 12 };
+  })();
+  // Same filter as the meetup screen: wild jumps wait for a second reading.
+  const [myPos, setMyPos] = useState(null);
+  const pendingRef = useRef(null);
+  const [heldJumps, setHeldJumps] = useState(0);
+  useEffect(() => {
+    if (!reading) return;
+    if (params?.gps === 'lost' && myPos && tick > 2) return; // GPS gone: no new readings
+    setMyPos((cur) => {
+      // Standing still, the screen's 30 s probe gets a fresh reading of the same spot.
+      // "lost": pretend the last fix is 90 s old so the warning shows straight away.
+      const nowMs = Date.now();
+      const { fix, pending } = acceptFix(cur, pendingRef.current, reading, nowMs);
+      pendingRef.current = pending;
+      if (!fix && pending) setHeldJumps((n) => n + 1);
+      return fix ? (params?.gps === 'lost' ? { ...fix, at: nowMs - 90000 } : fix) : cur;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reading?.lat, reading?.lng, tick, params?.gps, Math.floor(now / 30000)]);
   const friendPos = planning ? FRIEND_START : paths ? at(paths.friend, fFriend) : null;
+  const thirdPos = params?.group && paths && !planning ? at(paths.third, Math.min(1, 0.3 + tick * 0.004)) : null;
 
   // Like the realtime handler: each new friend fix gets a speed from the last one.
   const [friendLoc, setFriendLoc] = useState(null);
-  const [updatedAt] = useState(() => new Date(Date.now() - 5000).toISOString());
+  const [updatedAt, setUpdatedAt] = useState(() => new Date(Date.now() - 5000).toISOString());
+  useEffect(() => {
+    if (params?.stale) setUpdatedAt(new Date(Date.now() - 4 * 60000).toISOString());
+  }, [params?.stale]);
   useEffect(() => {
     if (friendPos) setFriendLoc((prev) => withSpeed(prev, { ...friendPos, updated_at: updatedAt }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -117,7 +163,25 @@ export default function NavSim() {
     return sec < 3 ? 'just now' : sec < 60 ? `${sec}s ago` : `${Math.round(sec / 60)} min ago`;
   })();
   const friendDistKm = dest && friendLoc ? haversine([friendLoc.lat, friendLoc.lng], [dest.lat, dest.lng]) : null;
-  const pill = meetStatusPill({
+  const friendStale = now - new Date(updatedAt).getTime() > 2 * 60000;
+  const myDistKm = dest && myPos ? haversine([myPos.lat, myPos.lng], [dest.lat, dest.lng]) : null;
+  const iArrived = isArrived(false, myDistKm, myPos?.accuracy);
+  const myLocState = myLocationStatus({ sharing: !planning, manual: false, pos: myPos, now });
+  const meLive = myPos ? !myLocState : undefined;
+  const friendLive = friendLoc ? !friendStale : undefined;
+  const locText =
+    myLocState?.kind === 'finding'
+      ? 'Finding your location…'
+      : myLocState?.kind === 'stale'
+        ? `Your location isn’t updating (last fix ${myLocState.ageSec}s ago). Check GPS and signal.`
+        : myLocState?.kind === 'rough'
+          ? `Your location is approximate (±${fmtKm(myLocState.accuracyM / 1000)}), so your pin may be off.`
+          : null;
+  const thirdDistKm = dest && thirdPos ? haversine([thirdPos.lat, thirdPos.lng], [dest.lat, dest.lng]) : null;
+  const others = thirdPos
+    ? [{ ...THIRD, lat: thirdPos.lat, lng: thirdPos.lng, tag: thirdDistKm != null ? `${fmtKm(thirdDistKm)}` : null, live: true }]
+    : [];
+  let pill = meetStatusPill({
     status,
     friendName: FRIEND_NAME,
     friendLoc,
@@ -126,13 +190,17 @@ export default function NavSim() {
     friendDistKm,
     friendNav,
     friendAgo: ago,
+    friendStale,
   });
+  if (others.length && status === 'live') {
+    pill = { label: 'Tracking live', detail: iArrived ? '1 of 3 there' : '3 people on the way', ago: null, live: true };
+  }
   const { meTag, friendTag } = etaTags({
     status,
     myPos,
     friendLoc,
     center: HALFWAY.point,
-    iArrived: false,
+    iArrived,
     friendArrived: false,
     myEtaMin: myNav.progress?.etaMin ?? null,
     friendEta,
@@ -157,7 +225,12 @@ export default function NavSim() {
             meLetter="K"
             friend={friendPos}
             friendLetter="P"
+            others={others}
             dest={DEST}
+            followKey={followKey}
+            focusOn={focus?.me ? null : focus}
+            meLive={meLive}
+            friendLive={friendLive}
           />
         ) : (
           <MeetMap
@@ -174,10 +247,14 @@ export default function NavSim() {
             dest={dest}
             route={planning ? null : myNav.nav?.coords}
             altRoute={planning ? null : friendNav.nav?.coords}
-            fitKey={[!!myPos, !!friendLoc, recenter, layout.wide].join('|')}
+            fitKey={[!!myPos, !!friendLoc, others.length, recenter, layout.wide].join('|')}
             insets={layout.insets}
             meTag={meTag}
             friendTag={friendTag}
+            others={others}
+            focusOn={focus}
+            meLive={meLive}
+            friendLive={friendLive}
             link={planning ? [[myPos.lat, myPos.lng], HALFWAY.point, friendLoc && [friendLoc.lat, friendLoc.lng]] : null}
           />
         )}
@@ -194,15 +271,31 @@ export default function NavSim() {
             {viewing === 'friend' ? (
               <FriendSpot name={FRIEND_NAME} me={myPos} friend={friendLoc} now={now} />
             ) : (
-              <NavBanner who="You" isMe pos={myPos} live={myNav} arrived={false} />
+              <NavBanner who="You" isMe pos={myPos} live={myNav} arrived={iArrived} />
             )}
           </div>
         ) : (
           <StatusPill {...pill} />
         )}
+        {!planning && locText && (
+          <div className={`${m.locStrip} ${myLocState?.kind === 'finding' ? m.locStripCalm : ''}`} role="status">
+            <span>{locText}</span>
+            {myLocState?.kind !== 'finding' && <button type="button">Try again</button>}
+          </div>
+        )}
       </MeetHeader>
 
       <MapControls
+        lowered={!planning && !!locText}
+        onLocate={
+          myPos
+            ? () => {
+                setPov('me');
+                setFollowKey((n) => n + 1);
+                setFocus({ lat: myPos.lat, lng: myPos.lng, n: Date.now(), me: true });
+              }
+            : null
+        }
         navigating={navigating}
         onFit={() => setRecenter((n) => n + 1)}
         onNavigate={planning ? null : () => setNavMode(true)}
@@ -271,8 +364,13 @@ export default function NavSim() {
                   me: true,
                   letter: 'K',
                   name: 'You',
-                  sub: myNav.progress?.etaMin != null ? `~${fmtMin(myNav.progress.etaMin)} by road` : 'Locating…',
+                  sub: iArrived
+                    ? 'Arrived'
+                    : myNav.progress?.etaMin != null
+                      ? `~${fmtMin(myNav.progress.etaMin)} by road`
+                      : 'Locating…',
                   km: myNav.progress?.remainingKm ?? null,
+                  arrived: iArrived,
                 },
                 {
                   key: 'friend',
@@ -280,7 +378,16 @@ export default function NavSim() {
                   name: FRIEND_NAME,
                   sub: `${friendEta != null ? `~${fmtMin(friendEta)} · ` : ''}updated ${ago}`,
                   km: friendNav.progress?.remainingKm ?? null,
+                  onFind: () => friendLoc && setFocus({ lat: friendLoc.lat, lng: friendLoc.lng, n: Date.now() }),
                 },
+                ...others.map((o) => ({
+                  key: o.id,
+                  letter: o.letter,
+                  name: o.name,
+                  sub: `Added to the meetup · ${o.tag} away · updated just now`,
+                  km: thirdDistKm,
+                  onFind: () => setFocus({ lat: o.lat, lng: o.lng, n: Date.now() }),
+                })),
               ]}
             />
           </>
@@ -292,7 +399,8 @@ export default function NavSim() {
 
       <div id="sim-status" hidden>
         pov={viewing} route={viewNav.nav ? 'yes' : 'no'} next={viewNav.progress?.next?.instruction || '-'} error=
-        {viewNav.error || '-'}
+        {viewNav.error || '-'} arrived={String(iArrived)} loc={myLocState?.kind || 'ok'} held={heldJumps}
+        myLat={myPos?.lat?.toFixed(4)} readLat={reading?.lat?.toFixed(4)}
       </div>
     </div>
   );

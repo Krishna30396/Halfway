@@ -44,14 +44,16 @@ language sql stable security definer set search_path = public as $$
   union select user_id from meetup_members where meetup_id = m and status = 'joined';
 $$;
 
+-- The two who started it are checked on the row itself first: a meetup being
+-- created isn't visible to the functions yet, and insert … returning needs this.
 drop policy if exists "Participants can read meetups" on meetups;
 create policy "Participants can read meetups" on meetups
-  for select using (can_see_meetup(id));
+  for select using (auth.uid() in (created_by, invitee) or can_see_meetup(id));
 
 drop policy if exists "Participants can update meetups" on meetups;
 create policy "Participants can update meetups" on meetups
-  for update using (is_meetup_participant(id))
-  with check (is_meetup_participant(id));
+  for update using (auth.uid() in (created_by, invitee) or is_meetup_participant(id))
+  with check (auth.uid() in (created_by, invitee) or is_meetup_participant(id));
 
 drop policy if exists "Meetup people can read members" on meetup_members;
 create policy "Meetup people can read members" on meetup_members
